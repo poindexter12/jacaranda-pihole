@@ -1,0 +1,6 @@
+# Secrets (main .secrets.local is at parent level)
+secrets.local.yml
+*.vault.yml
+
+# Ansible
+*.retry

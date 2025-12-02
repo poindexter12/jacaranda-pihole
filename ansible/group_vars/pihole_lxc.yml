@@ -1,0 +1,45 @@
+---
+# Pi-hole LXC Group Variables
+# Used by ansible/playbooks/pihole-lxc.yml
+
+# SSH configuration for LXC containers
+ansible_user: root
+ansible_ssh_private_key_file: ~/.ssh/jacaranda
+
+# Pi-hole installation
+pihole_install_url: "https://install.pi-hole.net"
+pihole_timezone: "America/Los_Angeles"
+
+# Password loaded from environment or secrets file
+# Set PIHOLE_PASSWORD environment variable before running
+pihole_password: "{{ lookup('env', 'PIHOLE_PASSWORD') }}"
+
+# Upstream DNS servers by profile
+# When cloudflared is installed, Pi-hole uses local DoH proxy
+# When cloudflared is NOT installed, falls back to direct DNS
+dns_upstream:
+  standard:
+    - "127.0.0.1#5053"  # cloudflared DoH proxy (primary)
+  restricted:
+    - "127.0.0.1#5053"  # cloudflared DoH proxy (primary)
+
+# Fallback DNS (used if cloudflared is down or not installed)
+dns_upstream_fallback:
+  standard:
+    - "1.1.1.1"        # Cloudflare
+    - "1.0.0.1"        # Cloudflare secondary
+  restricted:
+    - "1.1.1.3"        # Cloudflare Family (malware + adult)
+    - "1.0.0.3"        # Cloudflare Family secondary
+
+# Network configuration
+networks:
+  trusted: "192.168.1"    # DNS traffic
+  mgmt: "192.168.5"       # Web UI / SSH
+
+# Domain for search
+search_domain: "home.arpa"
+
+# nebula-sync configuration
+nebula_sync_cron: "*/15 * * * *"  # Sync every 15 minutes
+nebula_sync_version: "latest"

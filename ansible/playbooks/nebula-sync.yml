@@ -1,0 +1,237 @@
+---
+# nebula-sync Deployment Playbook
+#
+# Deploys nebula-sync on secondary Pi-hole instances to sync config from primaries.
+# Run AFTER pihole-lxc.yml has installed Pi-hole on all instances.
+#
+# Sync topology:
+#   pihole-standard-20 (primary) --> pihole-standard-21 (secondary)
+#   pihole-restricted-22 (primary) --> pihole-restricted-23 (secondary)
+#
+# Usage:
+#   PIHOLE_PASSWORD="yourpass" ansible-playbook -i inventory/pihole-lxc.yml playbooks/nebula-sync.yml
+#
+# Tags:
+#   install   - Install nebula-sync binary
+#   configure - Configure sync settings
+#   service   - Set up systemd service and timer
+
+- name: Deploy nebula-sync on secondary Pi-hole instances
+  hosts: pihole_secondary
+  gather_facts: true
+
+  vars:
+    nebula_sync_version: "{{ nebula_sync_version | default('latest') }}"
+    nebula_sync_install_dir: /usr/local/bin
+    nebula_sync_config_dir: /etc/nebula-sync
+    nebula_sync_cron_schedule: "*/15 * * * *"  # Every 15 minutes
+
+  pre_tasks:
+    - name: Validate PIHOLE_PASSWORD is set
+      ansible.builtin.assert:
+        that:
+          - pihole_password | length > 0
+        fail_msg: "PIHOLE_PASSWORD environment variable must be set"
+        success_msg: "PIHOLE_PASSWORD is configured"
+      tags: [always]
+
+    - name: Display sync configuration
+      ansible.builtin.debug:
+        msg: |
+          Configuring nebula-sync on {{ inventory_hostname }}:
+          - Profile: {{ profile }}
+          - Role: {{ role }}
+          - Sync FROM: {{ sync_partner }} ({{ sync_partner_transfer_ip }}) over transfer network
+      tags: [always]
+
+  tasks:
+    # =========================================================================
+    # DOWNLOAD AND INSTALL
+    # =========================================================================
+    - name: Check if nebula-sync is installed
+      ansible.builtin.stat:
+        path: "{{ nebula_sync_install_dir }}/nebula-sync"
+      register: nebula_sync_binary
+      tags: [install]
+
+    - name: Get latest nebula-sync release URL
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/lovelaze/nebula-sync/releases/latest
+        return_content: true
+      register: nebula_sync_release
+      when: not nebula_sync_binary.stat.exists
+      tags: [install]
+
+    - name: Set nebula-sync download URL
+      ansible.builtin.set_fact:
+        nebula_sync_url: >-
+          {{ nebula_sync_release.json.assets
+             | selectattr('name', 'match', '.*linux.*amd64.*\.tar\.gz$')
+             | map(attribute='browser_download_url') | first }}
+      when: not nebula_sync_binary.stat.exists
+      tags: [install]
+
+    - name: Download nebula-sync tarball
+      ansible.builtin.get_url:
+        url: "{{ nebula_sync_url }}"
+        dest: "/tmp/nebula-sync.tar.gz"
+        mode: "0644"
+      when: not nebula_sync_binary.stat.exists
+      tags: [install]
+
+    - name: Extract nebula-sync binary
+      ansible.builtin.unarchive:
+        src: "/tmp/nebula-sync.tar.gz"
+        dest: "{{ nebula_sync_install_dir }}"
+        remote_src: true
+        include:
+          - nebula-sync
+        mode: "0755"
+      when: not nebula_sync_binary.stat.exists
+      tags: [install]
+
+    - name: Clean up tarball
+      ansible.builtin.file:
+        path: "/tmp/nebula-sync.tar.gz"
+        state: absent
+      when: not nebula_sync_binary.stat.exists
+      tags: [install]
+
+    - name: Verify nebula-sync installation
+      ansible.builtin.command:
+        cmd: "{{ nebula_sync_install_dir }}/nebula-sync --version"
+      register: nebula_sync_version_check
+      changed_when: false
+      tags: [install]
+
+    - name: Display nebula-sync version
+      ansible.builtin.debug:
+        var: nebula_sync_version_check.stdout
+      tags: [install]
+
+    # =========================================================================
+    # CONFIGURATION
+    # =========================================================================
+    - name: Create nebula-sync config directory
+      ansible.builtin.file:
+        path: "{{ nebula_sync_config_dir }}"
+        state: directory
+        mode: "0700"
+      tags: [configure]
+
+    - name: Deploy nebula-sync configuration
+      ansible.builtin.template:
+        src: ../templates/nebula-sync.env.j2
+        dest: "{{ nebula_sync_config_dir }}/config.env"
+        mode: "0600"
+      notify: Restart nebula-sync timer
+      tags: [configure]
+
+    # =========================================================================
+    # SYSTEMD SERVICE AND TIMER
+    # =========================================================================
+    - name: Deploy nebula-sync systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/nebula-sync.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=nebula-sync Pi-hole configuration sync
+          After=network-online.target pihole-FTL.service
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart={{ nebula_sync_install_dir }}/nebula-sync run --env-file {{ nebula_sync_config_dir }}/config.env
+          StandardOutput=journal
+          StandardError=journal
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Reload systemd
+      tags: [service]
+
+    - name: Deploy nebula-sync systemd timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/nebula-sync.timer
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Run nebula-sync every 15 minutes
+
+          [Timer]
+          OnBootSec=5min
+          OnUnitActiveSec=15min
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+      notify:
+        - Reload systemd
+        - Restart nebula-sync timer
+      tags: [service]
+
+    - name: Enable and start nebula-sync timer
+      ansible.builtin.systemd:
+        name: nebula-sync.timer
+        state: started
+        enabled: true
+        daemon_reload: true
+      tags: [service]
+
+    # =========================================================================
+    # INITIAL SYNC
+    # =========================================================================
+    - name: Run initial sync
+      ansible.builtin.command:
+        cmd: systemctl start nebula-sync.service
+      register: initial_sync
+      changed_when: initial_sync.rc == 0
+      tags: [configure]
+
+    - name: Wait for sync to complete
+      ansible.builtin.pause:
+        seconds: 10
+      tags: [configure]
+
+    - name: Check sync status
+      ansible.builtin.command:
+        cmd: systemctl status nebula-sync.service
+      register: sync_status
+      changed_when: false
+      failed_when: false
+      tags: [configure]
+
+    - name: Display sync status
+      ansible.builtin.debug:
+        var: sync_status.stdout_lines
+      tags: [configure]
+
+    # =========================================================================
+    # VERIFICATION
+    # =========================================================================
+    - name: Verify timer is active
+      ansible.builtin.command:
+        cmd: systemctl is-active nebula-sync.timer
+      register: timer_status
+      changed_when: false
+      tags: [verify]
+
+    - name: Display verification results
+      ansible.builtin.debug:
+        msg: |
+          nebula-sync configured on {{ inventory_hostname }}:
+          - Syncing FROM: {{ sync_partner_transfer_ip }} (transfer network)
+          - Timer status: {{ timer_status.stdout }}
+          - Schedule: Every 15 minutes
+      tags: [verify]
+
+  handlers:
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Restart nebula-sync timer
+      ansible.builtin.systemd:
+        name: nebula-sync.timer
+        state: restarted

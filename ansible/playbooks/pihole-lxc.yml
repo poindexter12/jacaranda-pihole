@@ -1,0 +1,212 @@
+---
+# Pi-hole LXC Installation Playbook
+#
+# Installs native Pi-hole v6 on Proxmox LXC containers.
+# Run after Terraform creates the LXCs.
+#
+# Usage:
+#   PIHOLE_PASSWORD="yourpass" ansible-playbook -i inventory/pihole-lxc.yml playbooks/pihole-lxc.yml
+#
+# Tags:
+#   install   - Install Pi-hole
+#   configure - Configure Pi-hole (password, web binding)
+#   verify    - Verify installation
+
+- name: Install and configure Pi-hole on LXC containers
+  hosts: pihole_lxc
+  gather_facts: true
+
+  pre_tasks:
+    - name: Validate PIHOLE_PASSWORD is set
+      ansible.builtin.assert:
+        that:
+          - pihole_password | length > 0
+        fail_msg: "PIHOLE_PASSWORD environment variable must be set"
+        success_msg: "PIHOLE_PASSWORD is configured"
+      tags: [always]
+
+    - name: Wait for LXC to be ready
+      ansible.builtin.wait_for_connection:
+        timeout: 60
+      tags: [always]
+
+    - name: Gather facts
+      ansible.builtin.setup:
+      tags: [always]
+
+  tasks:
+    # =========================================================================
+    # PRE-FLIGHT CHECKS
+    # =========================================================================
+    - name: Check if Pi-hole is already installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/pihole
+      register: pihole_binary
+      tags: [install]
+
+    - name: Display Pi-hole installation status
+      ansible.builtin.debug:
+        msg: "Pi-hole {{ 'is already installed' if pihole_binary.stat.exists else 'needs to be installed' }}"
+      tags: [install]
+
+    # =========================================================================
+    # SYSTEM PREPARATION
+    # =========================================================================
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      tags: [install]
+
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+      tags: [install]
+
+    # =========================================================================
+    # PI-HOLE INSTALLATION (Unattended)
+    # =========================================================================
+    - name: Create Pi-hole config directory
+      ansible.builtin.file:
+        path: /etc/pihole
+        state: directory
+        mode: "0755"
+      when: not pihole_binary.stat.exists
+      tags: [install]
+
+    - name: Deploy setupVars.conf for unattended install
+      ansible.builtin.template:
+        src: ../templates/setupVars.conf.j2
+        dest: /etc/pihole/setupVars.conf
+        mode: "0644"
+      when: not pihole_binary.stat.exists
+      tags: [install]
+
+    - name: Download Pi-hole installer
+      ansible.builtin.get_url:
+        url: "{{ pihole_install_url }}"
+        dest: /tmp/pihole-install.sh
+        mode: "0755"
+      when: not pihole_binary.stat.exists
+      tags: [install]
+
+    - name: Run Pi-hole unattended installation
+      ansible.builtin.command:
+        cmd: bash /tmp/pihole-install.sh --unattended
+      when: not pihole_binary.stat.exists
+      register: pihole_install
+      changed_when: pihole_install.rc == 0
+      tags: [install]
+
+    - name: Remove installer script
+      ansible.builtin.file:
+        path: /tmp/pihole-install.sh
+        state: absent
+      tags: [install]
+
+    # =========================================================================
+    # PI-HOLE CONFIGURATION
+    # =========================================================================
+    - name: Set Pi-hole admin password
+      ansible.builtin.command:
+        cmd: pihole -a -p "{{ pihole_password }}"
+      changed_when: true
+      no_log: true
+      tags: [configure]
+
+    - name: Set timezone
+      ansible.builtin.command:
+        cmd: timedatectl set-timezone {{ pihole_timezone }}
+      changed_when: false
+      tags: [configure]
+
+    # =========================================================================
+    # WEB UI BINDING (Management + Transfer VLANs)
+    # =========================================================================
+    # Pi-hole v6 uses embedded web server in FTL
+    # Configure via pihole.toml or FTLCONF environment
+    # Bind to both mgmt (192.168.5.x) and transfer (192.168.11.x) networks
+    - name: Configure Web UI to bind to management and transfer IPs
+      ansible.builtin.lineinfile:
+        path: /etc/pihole/pihole.toml
+        regexp: '^(\s*)port\s*='
+        line: '  port = "{{ mgmt_ip }}:80o,{{ mgmt_ip }}:443os,{{ transfer_ip }}:80o,{{ transfer_ip }}:443os"'
+        insertafter: '^\[webserver\]'
+        create: false
+      notify: Restart pihole-FTL
+      tags: [configure]
+      ignore_errors: true  # File may not exist on fresh install
+
+    # Alternative: Create/update pihole.toml if it doesn't exist
+    - name: Ensure pihole.toml webserver configuration
+      ansible.builtin.blockinfile:
+        path: /etc/pihole/pihole.toml
+        block: |
+          [webserver]
+            port = "{{ mgmt_ip }}:80o,{{ mgmt_ip }}:443os,{{ transfer_ip }}:80o,{{ transfer_ip }}:443os"
+        marker: "# {mark} ANSIBLE MANAGED - Web UI binding"
+        create: true
+        mode: "0644"
+      notify: Restart pihole-FTL
+      tags: [configure]
+
+    # =========================================================================
+    # SERVICE MANAGEMENT
+    # =========================================================================
+    - name: Ensure pihole-FTL service is enabled and running
+      ansible.builtin.systemd:
+        name: pihole-FTL
+        state: started
+        enabled: true
+      tags: [configure]
+
+    # =========================================================================
+    # VERIFICATION
+    # =========================================================================
+    - name: Verify Pi-hole status
+      ansible.builtin.command:
+        cmd: pihole status
+      register: pihole_status
+      changed_when: false
+      tags: [verify]
+
+    - name: Display Pi-hole status
+      ansible.builtin.debug:
+        var: pihole_status.stdout_lines
+      tags: [verify]
+
+    - name: Verify DNS is listening
+      ansible.builtin.wait_for:
+        host: "{{ dns_ip }}"
+        port: 53
+        timeout: 30
+      tags: [verify]
+
+    - name: Verify Web UI is accessible
+      ansible.builtin.uri:
+        url: "http://{{ mgmt_ip }}/admin/"
+        status_code: [200, 302]
+      register: web_check
+      retries: 3
+      delay: 5
+      tags: [verify]
+
+    - name: Display verification results
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} verification:
+          - Profile: {{ profile }}
+          - Role: {{ role }}
+          - DNS IP: {{ dns_ip }} (port 53)
+          - Web UI: http://{{ mgmt_ip }}/admin/
+          - Status: OK
+      tags: [verify]
+
+  handlers:
+    - name: Restart pihole-FTL
+      ansible.builtin.systemd:
+        name: pihole-FTL
+        state: restarted

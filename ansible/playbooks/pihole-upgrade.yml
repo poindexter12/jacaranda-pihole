@@ -1,0 +1,128 @@
+---
+# Pi-hole Upgrade Playbook (Blue-Green Deployment)
+#
+# Upgrades Pi-hole to latest version with verification.
+# Designed for staged rollouts - update one group, verify, then update the other.
+#
+# Usage:
+#   # Check versions only (no changes)
+#   ansible-playbook -i inventory/pihole-lxc.yml playbooks/pihole-upgrade.yml --tags check
+#
+#   # Upgrade "blue" (primaries) first
+#   ansible-playbook -i inventory/pihole-lxc.yml playbooks/pihole-upgrade.yml --limit pihole_primary
+#
+#   # After verification, upgrade "green" (secondaries)
+#   ansible-playbook -i inventory/pihole-lxc.yml playbooks/pihole-upgrade.yml --limit pihole_secondary
+#
+#   # Upgrade all at once (not recommended for production)
+#   ansible-playbook -i inventory/pihole-lxc.yml playbooks/pihole-upgrade.yml
+#
+# Tags:
+#   check   - Only check versions, no upgrades
+#   upgrade - Run the upgrade
+#   verify  - Verify DNS and web UI after upgrade
+
+- name: Upgrade Pi-hole with blue-green deployment support
+  hosts: pihole_lxc
+  gather_facts: true
+
+  tasks:
+    # =========================================================================
+    # PRE-UPGRADE VERSION CHECK
+    # =========================================================================
+    - name: Get current Pi-hole version
+      ansible.builtin.command:
+        cmd: pihole -v -c
+      register: pihole_version_current
+      changed_when: false
+      tags: [check, upgrade, verify]
+
+    - name: Display current versions
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} current versions:
+          {{ pihole_version_current.stdout }}
+      tags: [check, upgrade, verify]
+
+    - name: Check for available updates
+      ansible.builtin.command:
+        cmd: pihole -up --check
+      register: pihole_update_check
+      changed_when: false
+      failed_when: false
+      tags: [check, upgrade]
+
+    - name: Display update availability
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} update status:
+          {{ pihole_update_check.stdout_lines | default(['No output']) | join('\n') }}
+      tags: [check, upgrade]
+
+    # =========================================================================
+    # UPGRADE
+    # =========================================================================
+    - name: Run Pi-hole upgrade
+      ansible.builtin.command:
+        cmd: pihole -up
+      register: pihole_upgrade_result
+      changed_when: "'is the latest version' not in pihole_upgrade_result.stdout"
+      tags: [upgrade]
+
+    - name: Display upgrade result
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} upgrade output:
+          {{ pihole_upgrade_result.stdout_lines[-10:] | join('\n') }}
+      when: pihole_upgrade_result is defined
+      tags: [upgrade]
+
+    # =========================================================================
+    # POST-UPGRADE VERIFICATION
+    # =========================================================================
+    - name: Wait for Pi-hole FTL to stabilize
+      ansible.builtin.pause:
+        seconds: 5
+      tags: [upgrade, verify]
+
+    - name: Verify pihole-FTL service is running
+      ansible.builtin.systemd:
+        name: pihole-FTL
+        state: started
+      register: ftl_status
+      tags: [upgrade, verify]
+
+    - name: Verify DNS is responding
+      ansible.builtin.command:
+        cmd: dig +short @{{ dns_ip }} google.com A
+      register: dns_test
+      changed_when: false
+      failed_when: dns_test.stdout == ""
+      tags: [upgrade, verify]
+
+    - name: Verify Web UI is accessible
+      ansible.builtin.uri:
+        url: "http://{{ mgmt_ip }}/admin/"
+        status_code: [200, 302]
+      register: web_test
+      tags: [upgrade, verify]
+
+    - name: Get post-upgrade version
+      ansible.builtin.command:
+        cmd: pihole -v -c
+      register: pihole_version_after
+      changed_when: false
+      tags: [upgrade, verify]
+
+    - name: Display verification results
+      ansible.builtin.debug:
+        msg: |
+          {{ inventory_hostname }} verification:
+          - Profile: {{ profile }}
+          - Role: {{ role }}
+          - FTL Service: {{ 'running' if ftl_status is not failed else 'FAILED' }}
+          - DNS Test: {{ 'PASSED' if dns_test.stdout != '' else 'FAILED' }}
+          - Web UI: {{ 'PASSED' if web_test.status in [200, 302] else 'FAILED' }}
+          - Version after upgrade:
+          {{ pihole_version_after.stdout | indent(4) }}
+      tags: [upgrade, verify]

@@ -1,0 +1,38 @@
+---
+# Pi-hole Test Instance Inventory
+#
+# Single isolated instance for testing changes before production.
+# NOT part of production HA - deploy, test, destroy.
+#
+# Create LXC:  cd ../envs/test && make apply
+# Deploy:      make test-deploy
+# Destroy LXC: cd ../envs/test && make destroy
+
+all:
+  children:
+    pihole_lxc:
+      vars:
+        ansible_user: root
+      hosts:
+        pihole-test-99:
+          ansible_host: 192.168.5.99
+          dns_ip: "192.168.1.99"
+          mgmt_ip: "192.168.5.99"
+          transfer_ip: "192.168.11.99"
+          profile: standard
+          role: primary
+
+    # Groups expected by playbooks (empty for test instance)
+    pihole_standard:
+      hosts:
+        pihole-test-99:
+
+    pihole_restricted:
+      hosts: {}
+
+    pihole_primary:
+      hosts:
+        pihole-test-99:
+
+    pihole_secondary:
+      hosts: {}

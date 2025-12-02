@@ -1,0 +1,43 @@
+---
+# Pi-hole LXC Inventory
+# 4 LXC containers - one per DNS IP
+#
+# Architecture:
+#   Standard profile: pihole-standard-20 (primary), pihole-standard-21 (secondary)
+#   Restricted profile: pihole-restricted-22 (primary), pihole-restricted-23 (secondary)
+#
+# Hostname suffix matches DNS IP ending (20, 21, 22, 23)
+
+all:
+  children:
+    pihole_lxc:
+      vars:
+        ansible_user: root
+      children:
+        # Standard blocklist instances
+        pihole_standard:
+          hosts:
+            pihole-standard-20:
+              ansible_host: 192.168.5.20
+            pihole-standard-21:
+              ansible_host: 192.168.5.21
+
+        # Restricted blocklist instances
+        pihole_restricted:
+          hosts:
+            pihole-restricted-22:
+              ansible_host: 192.168.5.22
+            pihole-restricted-23:
+              ansible_host: 192.168.5.23
+
+        # Primary instances (nebula-sync source)
+        pihole_primary:
+          hosts:
+            pihole-standard-20:
+            pihole-restricted-22:
+
+        # Secondary instances (nebula-sync target)
+        pihole_secondary:
+          hosts:
+            pihole-standard-21:
+            pihole-restricted-23:

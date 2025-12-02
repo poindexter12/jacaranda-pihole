@@ -1,0 +1,15 @@
+---
+# pihole-standard-21: Standard blocklist, Secondary instance
+# Proxmox Node: maxwell | LXC ID: 121
+
+profile: standard
+role: secondary
+
+# Network IPs
+dns_ip: "192.168.1.21"
+mgmt_ip: "192.168.5.21"
+transfer_ip: "192.168.11.21"
+
+# Sync configuration (secondary syncs FROM primary over transfer network)
+sync_partner: "pihole-standard-20"
+sync_partner_transfer_ip: "192.168.11.20"

@@ -1,0 +1,12 @@
+---
+# Network configuration
+networks:
+  trusted: "192.168.1"
+  mgmt: "192.168.5"
+  transfer: "192.168.11"
+
+mgmt_domain: "mgmt"
+
+# Pi-hole base configuration
+pihole_timezone: "America/Los_Angeles"
+volume_base_path: "/opt/pihole-ha"

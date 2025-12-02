@@ -1,0 +1,38 @@
+name: pihole-${PIHOLE_PROFILE}
+
+# Network Architecture (Host Networking):
+# - VM owns all IPs on trusted/mgmt/transfer networks
+# - Pi-hole containers use network_mode: host
+# - DNS binds to dummy interfaces (dns-std, dns-res) via FTLCONF_dns_interface
+# - Web UI binds to management IP only via FTLCONF_webserver_port
+# - No Docker networks needed - VM's network stack is shared
+
+services:
+  pihole:
+    container_name: pihole-${PIHOLE_PROFILE}
+    image: pihole/pihole:latest
+    hostname: ${INSTANCE_NAME}-${PIHOLE_PROFILE}-pihole.${MANAGEMENT_DOMAIN}
+    network_mode: host
+    environment:
+      TZ: ${PIHOLE_TIMEZONE}
+      WEBPASSWORD: ${PIHOLE_PASSWORD}
+      PIHOLE_DNS_: ${PIHOLE_DNS_UPSTREAM}
+      DNSSEC: "true"
+      # Bind DNS to dummy interface (enables multiple Pi-hole profiles on same VM)
+      # Pi-hole FTL v6 can only bind to interfaces, not specific IPs
+      # dns-std interface has standard IP, dns-res has restricted IP
+      FTLCONF_dns_interface: ${PIHOLE_DNS_INTERFACE}
+      FTLCONF_dns_listeningMode: BIND
+      # Bind Web UI to management IP only (192.168.5.x)
+      # FTL v6 format: address:port[flags] where o=HTTP, os=HTTPS
+      # Standard: 80/443, Restricted: 8080/8443
+      FTLCONF_webserver_port: ${PIHOLE_MGMT_IP}:${PIHOLE_WEB_PORT}o,${PIHOLE_MGMT_IP}:${PIHOLE_WEB_PORT_SSL}os
+      VIRTUAL_HOST: ${INSTANCE_NAME}-${PIHOLE_PROFILE}-pihole.${MANAGEMENT_DOMAIN}
+    volumes:
+      - ${PIHOLE_ETC_PATH}:/etc/pihole
+      - ${PIHOLE_DNSMASQ_PATH}:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+
+# No networks section - using host networking

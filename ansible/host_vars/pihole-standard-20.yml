@@ -1,0 +1,11 @@
+---
+# pihole-standard-20: Standard blocklist, Primary instance
+# Proxmox Node: joseph | LXC ID: 120
+
+profile: standard
+role: primary
+
+# Network IPs
+dns_ip: "192.168.1.20"
+mgmt_ip: "192.168.5.20"
+transfer_ip: "192.168.11.20"
