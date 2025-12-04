@@ -1,6 +1,1 @@
-# Terraform
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfstate.backup
-.terraform.lock.hcl
+# Service-specific ignores (common patterns in repo root .gitignore)
