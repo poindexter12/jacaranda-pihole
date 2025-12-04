@@ -12,8 +12,8 @@ terraform {
 
   required_providers {
     proxmox = {
-      source = "Telmate/proxmox"
-      # Version constraint set by calling module
+      source  = "Telmate/proxmox"
+      version = "= 3.0.2-rc04" # Consistent with other services
     }
   }
 }
