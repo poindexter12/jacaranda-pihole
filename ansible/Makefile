@@ -1,150 +1,154 @@
 # Pi-hole Ansible
 #
 # Deploys Pi-hole, cloudflared, and nebula-sync to LXC containers.
-# Mirrors terraform envs pattern: test vs prod via inventory selection.
+# Secrets loaded from 1Password via `op read`.
+# Verbose logs written to logs/ directory.
+#
+# Self-documenting: run `make help` to see all targets
 
 .DEFAULT_GOAL := help
 
-.PHONY: help deps test-deploy test-pihole test-cloudflared
-.PHONY: prod-deploy prod-pihole prod-cloudflared prod-nebula-sync prod-upgrade
-.PHONY: ping-test ping-prod
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+LOG_DIR = logs
+LOG_FILE = $(LOG_DIR)/ansible-$(shell date +%Y%m%d-%H%M%S).log
+export ANSIBLE_LOG_PATH = $(LOG_FILE)
+
+$(shell mkdir -p $(LOG_DIR))
 
 ANSIBLE_PLAYBOOK = ansible-playbook
 ANSIBLE = ansible
 
-# Secrets (centralized in secrets/services/pihole/)
-SECRETS_DIR = ../../../secrets/services/pihole
-SECRETS_FILE = $(SECRETS_DIR)/.secrets.local
-
-# Source secrets at shell time (not Make parse time) to handle special characters
-# Make's -include corrupts passwords containing $ or # characters
-SOURCE_SECRETS = if [ -z "$$PIHOLE_PASSWORD" ] && [ -f "$(SECRETS_FILE)" ]; then . "$(SECRETS_FILE)" && export PIHOLE_PASSWORD; fi
+# 1Password convention: op://Homelab/{service}-{env}/{field}
+OP_VAULT = Homelab
+SERVICE = pihole
 
 # ============================================================================
-# DEPENDENCIES
+# INCLUDES
 # ============================================================================
 
-deps:
-	ansible-galaxy install -r requirements.yml
+include ../../../infrastructure/ansible/fetch.mk
 
 # ============================================================================
-# TEST ENVIRONMENT
+# TARGETS
 # ============================================================================
 
-ping-test:
+##@ Test Environment
+
+ping-test: ## Test connectivity to test hosts
 	$(ANSIBLE) -i inventory/test.yml all -m ping
 
-test-deploy: test-pihole test-cloudflared
+test-deploy: fetch test-pihole test-cloudflared ## Full test deployment (pihole + cloudflared)
 	@echo "Test deployment complete"
 
-test-pihole:
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-lxc.yml
+test-pihole: ## Install Pi-hole on test
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-lxc.yml \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-test/webpassword')"
 
-test-cloudflared:
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-cloudflared.yml
+test-cloudflared: ## Install cloudflared on test
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-cloudflared.yml
 
-# ============================================================================
-# PROD ENVIRONMENT
-# ============================================================================
+test-dns: ## Register DNS entries for test instances
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-dns-self.yml
 
-ping-prod:
+##@ Production Environment
+
+ping-prod: ## Test connectivity to prod hosts
 	$(ANSIBLE) -i inventory/prod.yml all -m ping
 
-prod-deploy: prod-pihole prod-cloudflared prod-nebula-sync
+prod-deploy: fetch prod-pihole prod-cloudflared prod-nebula-sync ## Full prod deployment
 	@echo "Production deployment complete"
 
-prod-pihole:
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml
+prod-pihole: ## Install Pi-hole on prod
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
-prod-cloudflared:
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml
+prod-cloudflared: ## Install cloudflared on prod
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml
 
-prod-nebula-sync:
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/nebula-sync.yml
+prod-nebula-sync: ## Install nebula-sync on prod secondaries
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/nebula-sync.yml \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
-# ============================================================================
-# BLUE-GREEN DEPLOYMENT
-# ============================================================================
+prod-dns: ## Register DNS entries for prod instances
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-dns-self.yml
 
-prod-deploy-green:
+##@ Blue-Green Deployment
+
+prod-deploy-green: fetch ## Deploy to secondaries first (green)
 	@echo "=== Deploying to secondaries (green) ==="
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml --limit pihole_secondary
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml --limit pihole_secondary
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/nebula-sync.yml --limit pihole_secondary
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml --limit pihole_secondary \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml --limit pihole_secondary
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/nebula-sync.yml --limit pihole_secondary \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
-prod-deploy-blue:
+prod-deploy-blue: fetch ## Deploy to primaries after verification (blue)
 	@echo "=== Deploying to primaries (blue) ==="
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml --limit pihole_primary
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml --limit pihole_primary
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml --limit pihole_primary \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml --limit pihole_primary
 
-# ============================================================================
-# UPGRADES (Blue-Green)
-# ============================================================================
+##@ Upgrades
 
-prod-upgrade:
+prod-upgrade-blue: ## Upgrade primaries (blue) - step 1
 	@echo "=== Blue-Green Upgrade ==="
 	@echo "Step 1: Upgrade primaries (blue)"
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --limit pihole_primary
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --limit pihole_primary \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@echo ""
 	@echo "Verify primaries are working, then run: make prod-upgrade-green"
 
-prod-upgrade-green:
+prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 	@echo "Step 2: Upgrade secondaries (green)"
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --limit pihole_secondary
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --limit pihole_secondary \
+		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
-prod-upgrade-check:
-	@$(SOURCE_SECRETS); $(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --tags check
+prod-upgrade-check: ## Check versions without changes
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --tags check
 
-# ============================================================================
-# PASSWORD MANAGEMENT
-# ============================================================================
+##@ Secrets
 
-secrets:
-	@mkdir -p $(SECRETS_DIR)
-	@echo "Pi-hole password (used for web UI and API):"
-	@read -s -p "PIHOLE_PASSWORD: " pass && echo "PIHOLE_PASSWORD='$$pass'" > $(SECRETS_FILE) && chmod 600 $(SECRETS_FILE) && echo "" && echo "Saved to $(SECRETS_FILE)"
+check-secrets: ## Verify 1Password items exist
+	@echo "Checking 1Password items..."
+	@echo "Test: op://$(OP_VAULT)/$(SERVICE)-test/webpassword"
+	@op read "op://$(OP_VAULT)/$(SERVICE)-test/webpassword" > /dev/null && echo "  ✓ $(SERVICE)-test exists" || echo "  ✗ $(SERVICE)-test missing"
+	@echo "Prod: op://$(OP_VAULT)/$(SERVICE)-prod/webpassword"
+	@op read "op://$(OP_VAULT)/$(SERVICE)-prod/webpassword" > /dev/null && echo "  ✓ $(SERVICE)-prod exists" || echo "  ✗ $(SERVICE)-prod missing"
 
-show-secrets:
-	@if [ -f "$(SECRETS_FILE)" ]; then \
-		cat $(SECRETS_FILE); \
-	elif [ -n "$$PIHOLE_PASSWORD" ]; then \
-		echo "PIHOLE_PASSWORD=$$PIHOLE_PASSWORD (from environment)"; \
-	else \
-		echo "No password configured. Run: make secrets"; \
-	fi
+##@ Logs
 
-# ============================================================================
-# HELP
-# ============================================================================
+logs: ## Show latest log file
+	@ls -t $(LOG_DIR)/*.log 2>/dev/null | head -1 | xargs cat || echo "No logs found"
 
-help:
+logs-tail: ## Tail latest log file
+	@ls -t $(LOG_DIR)/*.log 2>/dev/null | head -1 | xargs tail -f || echo "No logs found"
+
+logs-clean: ## Remove old log files
+	@rm -f $(LOG_DIR)/*.log && echo "Logs cleaned"
+
+##@ Other
+
+deps: ## Install Ansible Galaxy requirements
+	ansible-galaxy install -r requirements.yml
+
+##@ Help
+
+help: ## Show this help
 	@echo "Pi-hole Ansible"
 	@echo ""
-	@echo "Test Environment:"
-	@echo "  make ping-test        - Test connectivity"
-	@echo "  make test-deploy      - Full deployment (pihole + cloudflared)"
-	@echo "  make test-pihole      - Install Pi-hole only"
-	@echo "  make test-cloudflared - Install cloudflared only"
+	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Production Environment:"
-	@echo "  make ping-prod        - Test connectivity"
-	@echo "  make prod-deploy      - Full deployment (pihole + cloudflared + nebula-sync)"
-	@echo "  make prod-pihole      - Install Pi-hole only"
-	@echo "  make prod-cloudflared - Install cloudflared only"
-	@echo "  make prod-nebula-sync - Install nebula-sync only"
+	@awk 'BEGIN {FS = ":.*##"; section=""} \
+		/^##@/ { section=substr($$0, 5); next } \
+		/^[a-zA-Z_-]+:.*?##/ { \
+			if (section != "" && section != lastsection) { \
+				printf "\n\033[1m%s\033[0m\n", section; \
+				lastsection=section \
+			} \
+			printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 \
+		}' $(MAKEFILE_LIST)
 	@echo ""
-	@echo "Blue-Green Deployment:"
-	@echo "  make prod-deploy-green - Deploy secondaries (21, 23) first"
-	@echo "  make prod-deploy-blue  - Deploy primaries (20, 22) after verification"
-	@echo ""
-	@echo "Upgrades:"
-	@echo "  make prod-upgrade-check - Check versions (no changes)"
-	@echo "  make prod-upgrade       - Upgrade primaries (blue)"
-	@echo "  make prod-upgrade-green - Upgrade secondaries (green)"
-	@echo ""
-	@echo "Secrets:"
-	@echo "  make secrets          - Set password (prompts)"
-	@echo "  make show-secrets     - Display current"
-	@echo ""
-	@echo "Other:"
-	@echo "  make deps             - Install Ansible Galaxy requirements"
+	@echo "Secrets: op://$(OP_VAULT)/$(SERVICE)-{test,prod}/webpassword"

@@ -21,7 +21,9 @@
   gather_facts: true
 
   vars:
-    nebula_sync_version: "{{ nebula_sync_version | default('latest') }}"
+    # Package pre-downloaded by `make fetch` to .packagecache/
+    # Version pinned in versions.yaml
+    nebula_sync_version: "0.11.1"
     nebula_sync_install_dir: /usr/local/bin
     nebula_sync_config_dir: /etc/nebula-sync
     nebula_sync_cron_schedule: "*/15 * * * *"  # Every 15 minutes
@@ -46,54 +48,38 @@
 
   tasks:
     # =========================================================================
-    # DOWNLOAD AND INSTALL
+    # INSTALL FROM LOCAL CACHE
     # =========================================================================
+    # Package pre-downloaded by `make prefetch` - no external dependencies
     - name: Check if nebula-sync is installed
       ansible.builtin.stat:
         path: "{{ nebula_sync_install_dir }}/nebula-sync"
       register: nebula_sync_binary
       tags: [install]
 
-    - name: Get latest nebula-sync release URL
-      ansible.builtin.uri:
-        url: https://api.github.com/repos/lovelaze/nebula-sync/releases/latest
-        return_content: true
-      register: nebula_sync_release
-      when: not nebula_sync_binary.stat.exists
+    - name: Verify local package exists
+      ansible.builtin.stat:
+        path: "{{ playbook_dir }}/../.packagecache/nebula-sync/{{ nebula_sync_version }}/nebula-sync_{{ nebula_sync_version }}_linux_amd64.tar.gz"
+      register: local_package
+      delegate_to: localhost
+      run_once: true
       tags: [install]
 
-    - name: Set nebula-sync download URL
-      ansible.builtin.set_fact:
-        nebula_sync_url: >-
-          {{ nebula_sync_release.json.assets
-             | selectattr('name', 'match', '.*linux.*amd64.*\.tar\.gz$')
-             | map(attribute='browser_download_url') | first }}
-      when: not nebula_sync_binary.stat.exists
+    - name: Fail if package not fetched
+      ansible.builtin.fail:
+        msg: "nebula-sync not found in cache. Run 'make fetch' first."
+      when:
+        - not nebula_sync_binary.stat.exists
+        - not local_package.stat.exists
       tags: [install]
 
-    - name: Download nebula-sync tarball
-      ansible.builtin.get_url:
-        url: "{{ nebula_sync_url }}"
-        dest: "/tmp/nebula-sync.tar.gz"
-        mode: "0644"
-      when: not nebula_sync_binary.stat.exists
-      tags: [install]
-
-    - name: Extract nebula-sync binary
+    - name: Copy nebula-sync tarball from local cache
       ansible.builtin.unarchive:
-        src: "/tmp/nebula-sync.tar.gz"
+        src: "{{ playbook_dir }}/../.packagecache/nebula-sync/{{ nebula_sync_version }}/nebula-sync_{{ nebula_sync_version }}_linux_amd64.tar.gz"
         dest: "{{ nebula_sync_install_dir }}"
-        remote_src: true
         include:
           - nebula-sync
         mode: "0755"
-      when: not nebula_sync_binary.stat.exists
-      tags: [install]
-
-    - name: Clean up tarball
-      ansible.builtin.file:
-        path: "/tmp/nebula-sync.tar.gz"
-        state: absent
       when: not nebula_sync_binary.stat.exists
       tags: [install]
 
@@ -180,18 +166,44 @@
       tags: [service]
 
     # =========================================================================
-    # INITIAL SYNC
+    # INITIAL SYNC (only if primary is reachable)
     # =========================================================================
+    - name: Check if primary Pi-hole is reachable
+      ansible.builtin.uri:
+        url: "http://{{ sync_partner_transfer_ip }}/api/auth"
+        method: GET
+        status_code: [200, 401, 405]  # Any response means Pi-hole is up
+        timeout: 5
+      register: primary_check
+      failed_when: false
+      tags: [configure]
+
+    - name: Set primary reachability fact
+      ansible.builtin.set_fact:
+        primary_reachable: "{{ primary_check.status is defined and primary_check.status > 0 }}"
+      tags: [configure]
+
+    - name: Report primary availability
+      ansible.builtin.debug:
+        msg: >-
+          Primary ({{ sync_partner_transfer_ip }}) is
+          {{ 'REACHABLE (status=' ~ primary_check.status ~ ')' if primary_reachable else 'NOT REACHABLE' }}.
+          {{ 'Running initial sync...' if primary_reachable
+             else 'Skipping initial sync - timer will retry once blue is deployed.' }}
+      tags: [configure]
+
     - name: Run initial sync
       ansible.builtin.command:
         cmd: systemctl start nebula-sync.service
       register: initial_sync
       changed_when: initial_sync.rc == 0
+      when: primary_reachable
       tags: [configure]
 
     - name: Wait for sync to complete
       ansible.builtin.pause:
         seconds: 10
+      when: primary_reachable
       tags: [configure]
 
     - name: Check sync status
@@ -200,11 +212,13 @@
       register: sync_status
       changed_when: false
       failed_when: false
+      when: primary_reachable
       tags: [configure]
 
     - name: Display sync status
       ansible.builtin.debug:
         var: sync_status.stdout_lines
+      when: primary_reachable and sync_status.stdout_lines is defined
       tags: [configure]
 
     # =========================================================================
@@ -218,12 +232,17 @@
       tags: [verify]
 
     - name: Display verification results
+      vars:
+        initial_sync_status: >-
+          {{ 'completed' if (primary_reachable | default(false) and initial_sync is defined)
+             else 'skipped (primary not reachable - will sync when blue is deployed)' }}
       ansible.builtin.debug:
         msg: |
           nebula-sync configured on {{ inventory_hostname }}:
           - Syncing FROM: {{ sync_partner_transfer_ip }} (transfer network)
           - Timer status: {{ timer_status.stdout }}
           - Schedule: Every 15 minutes
+          - Initial sync: {{ initial_sync_status }}
       tags: [verify]
 
   handlers:

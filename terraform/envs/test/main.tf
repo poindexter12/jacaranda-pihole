@@ -55,7 +55,7 @@ module "pihole" {
   onboot         = false # Don't auto-start test instance
 
   instances = {
-    "pihole-test-99" = {
+    "dns-test" = {
       vmid          = 199
       node          = "joseph"
       dns_ip        = "192.168.1.99"

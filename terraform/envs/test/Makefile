@@ -4,68 +4,64 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init plan apply destroy output validate clean
-
 TF = terraform
 
 # ============================================================================
-# TERRAFORM
+# TARGETS
 # ============================================================================
 
-init:
+##@ Terraform
+
+init: ## Initialize Terraform
 	$(TF) init
 
-plan: init
+plan: init ## Plan changes
 	$(TF) plan
 
-apply: init
+apply: init ## Create test instance
 	$(TF) apply -auto-approve
 
-destroy: init
+destroy: init ## Destroy test instance
 	$(TF) destroy -auto-approve
 
-output:
+output: ## Show Terraform outputs
 	$(TF) output
 
-validate: init
+validate: init ## Validate configuration
 	$(TF) validate
 
-clean:
+clean: ## Remove .terraform directory
 	rm -rf .terraform .terraform.lock.hcl
 
-# ============================================================================
-# TESTING
-# ============================================================================
+##@ Testing
 
-test-dns:
+test: test-ssh test-dns ## Run all tests
+
+test-dns: ## Test DNS resolution
 	@echo "=== DNS Resolution Test ==="
 	@dig @192.168.1.99 google.com +short && echo "DNS: PASS" || echo "DNS: FAIL"
 
-test-ssh:
+test-ssh: ## Test SSH connectivity
 	@echo "=== SSH Test ==="
 	@ssh -o ConnectTimeout=5 root@192.168.5.99 "hostname" && echo "SSH: PASS" || echo "SSH: FAIL"
 
-test: test-ssh test-dns
+##@ Help
 
-# ============================================================================
-# HELP
-# ============================================================================
-
-help:
+help: ## Show this help
 	@echo "Pi-hole Test Environment"
 	@echo ""
-	@echo "Terraform:"
-	@echo "  make init      - Initialize Terraform"
-	@echo "  make plan      - Plan changes"
-	@echo "  make apply     - Create test instance"
-	@echo "  make destroy   - Destroy test instance"
-	@echo "  make output    - Show outputs"
+	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Testing:"
-	@echo "  make test      - Run all tests"
-	@echo "  make test-dns  - Test DNS resolution"
-	@echo "  make test-ssh  - Test SSH connectivity"
+	@awk 'BEGIN {FS = ":.*##"; section=""} \
+		/^##@/ { section=substr($$0, 5); next } \
+		/^[a-zA-Z_-]+:.*?##/ { \
+			if (section != "" && section != lastsection) { \
+				printf "\n\033[1m%s\033[0m\n", section; \
+				lastsection=section \
+			} \
+			printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 \
+		}' $(MAKEFILE_LIST)
 	@echo ""
-	@echo "Instance: pihole-test-99 (VMID 199)"
+	@echo "Instance: dns-test (VMID 199)"
 	@echo "  DNS IP:  192.168.1.99"
 	@echo "  Mgmt IP: 192.168.5.99"

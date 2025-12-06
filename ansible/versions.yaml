@@ -1,0 +1,24 @@
+# Package versions for Pi-hole deployment
+#
+# This file is committed to git - it's the source of truth for deployments.
+# Downloaded packages are cached in .packagecache/{name}/{version}/
+#
+# Fields:
+#   name       - Package identifier (also the cache subdirectory)
+#   version    - Pinned version
+#   repo       - GitHub owner/repo
+#   asset      - Asset filename ({version} is substituted)
+#   tag_prefix - Prefix for release tag (default: "v")
+
+packages:
+  - name: nebula-sync
+    version: "0.11.1"
+    repo: lovelaze/nebula-sync
+    asset: "nebula-sync_{version}_linux_amd64.tar.gz"
+    tag_prefix: "v"
+
+  - name: cloudflared
+    version: "2025.11.1"
+    repo: cloudflare/cloudflared
+    asset: cloudflared-linux-amd64
+    tag_prefix: ""

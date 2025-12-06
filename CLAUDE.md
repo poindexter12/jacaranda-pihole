@@ -1,40 +1,49 @@
-# Pi-hole Service
+# Pi-hole Service (DNS)
 
 ## Quick Reference
 
 **Purpose:** Pi-hole DNS with cloudflared DoH on Proxmox LXC containers
 **Location:** `services/pihole/`
-**Secrets:** `secrets/services/pihole/.secrets.local`
+**Secrets:** 1Password `op://Homelab/pihole-{test,prod}/webpassword`
 
 **Quick Commands:**
 
 ```bash
 cd services/pihole
 make help              # Show all commands
-make secrets           # Set PIHOLE_PASSWORD (first time)
 make test-full         # Create test LXC + deploy Pi-hole
 make test-destroy      # Destroy test instance
 make prod-validate     # Test production DNS
+make prod-dns          # Register DNS entries for Pi-holes
 ```
 
 ## Architecture
 
 **4 Production LXCs, 2 profiles, HA pairs:**
 
-| Hostname | VMID | Node | Profile | Role | DNS IP | Mgmt IP |
-|----------|------|------|---------|------|--------|---------|
-| pihole-standard-20 | 120 | joseph | standard | primary | 192.168.1.20 | 192.168.5.20 |
-| pihole-standard-21 | 121 | maxwell | standard | secondary | 192.168.1.21 | 192.168.5.21 |
-| pihole-restricted-22 | 122 | joseph | restricted | primary | 192.168.1.22 | 192.168.5.22 |
-| pihole-restricted-23 | 123 | maxwell | restricted | secondary | 192.168.1.23 | 192.168.5.23 |
+| Hostname | VMID | Node | Profile | Role | Trusted IP | Mgmt IP | Storage IP |
+|----------|------|------|---------|------|------------|---------|------------|
+| dns-standard-primary | 120 | joseph | standard | primary | 192.168.1.20 | 192.168.5.20 | 192.168.11.20 |
+| dns-standard-secondary | 121 | maxwell | standard | secondary | 192.168.1.21 | 192.168.5.21 | 192.168.11.21 |
+| dns-restricted-primary | 122 | joseph | restricted | primary | 192.168.1.22 | 192.168.5.22 | 192.168.11.22 |
+| dns-restricted-secondary | 123 | maxwell | restricted | secondary | 192.168.1.23 | 192.168.5.23 | 192.168.11.23 |
+
+**DNS Naming Convention:**
+
+| Pattern | Resolves To | Example |
+|---------|-------------|---------|
+| `{hostname}.trusted` | Trusted network (192.168.1.x) | `dns-standard-primary.trusted` → 192.168.1.20 |
+| `{hostname}.mgmt` | Management network (192.168.5.x) | `dns-standard-primary.mgmt` → 192.168.5.20 |
+| `{hostname}.storage` | Storage network (192.168.11.x) | `dns-standard-primary.storage` → 192.168.11.20 |
+| `{hostname}` | CNAME → .trusted | `dns-standard-primary` → 192.168.1.20 |
 
 **Test Instance:**
 
-| Hostname | VMID | Node | DNS IP | Mgmt IP |
-|----------|------|------|--------|---------|
-| pihole-test-99 | 199 | joseph | 192.168.1.99 | 192.168.5.99 |
+| Hostname | VMID | Node | Trusted IP | Mgmt IP |
+|----------|------|------|------------|---------|
+| dns-test | 199 | joseph | 192.168.1.99 | 192.168.5.99 |
 
-**Network interfaces per LXC:**
+**Network interfaces per LXC (functional naming):**
 
 | Interface | VLAN | Purpose |
 |-----------|------|---------|
@@ -87,23 +96,13 @@ services/pihole/
 
 ## Secrets
 
-**Location:** `secrets/services/pihole/.secrets.local`
+**1Password:** `op://Homelab/pihole-{test,prod}/webpassword`
 
-**Setup:**
-
-```bash
-cd secrets
-make pihole-secrets      # Prompts for password
-make pihole-secrets-show # Display current
-make check               # Verify all secrets
-```
-
-**Or from service directory:**
+**Verify:**
 
 ```bash
-cd services/pihole
-make secrets
-make show-secrets
+op read 'op://Homelab/pihole-test/webpassword'   # Test password
+op read 'op://Homelab/pihole-prod/webpassword'   # Prod password
 ```
 
 ## Deployment Workflow
@@ -113,16 +112,13 @@ make show-secrets
 ```bash
 cd services/pihole
 
-# 1. Set password (first time only)
-make secrets
-
-# 2. Create test LXC + deploy Pi-hole
+# 1. Create test LXC + deploy Pi-hole
 make test-full
 
-# 3. Verify DNS
+# 2. Verify DNS
 dig @192.168.1.99 google.com
 
-# 4. Cleanup
+# 3. Cleanup
 make test-destroy
 ```
 
@@ -137,6 +133,7 @@ make prod-full
 # Or step by step:
 make prod-apply     # Create/update LXCs (Terraform)
 make prod-deploy    # Install Pi-hole (Ansible)
+make prod-dns       # Register DNS entries for Pi-holes
 make prod-validate  # Test DNS on all 4 instances
 ```
 
@@ -216,34 +213,36 @@ make prod-validate
 # All production instances
 make prod-validate
 
-# Or manually
-for ip in 192.168.1.20 192.168.1.21 192.168.1.22 192.168.1.23; do
-  echo "$ip: $(dig +short @$ip google.com)"
+# Or manually (uses DNS names)
+for host in dns-standard-primary dns-standard-secondary dns-restricted-primary dns-restricted-secondary; do
+  echo "$host: $(dig +short @$host.trusted google.com)"
 done
 ```
 
 ### Test Ad Blocking
 
 ```bash
-dig @192.168.1.20 doubleclick.net  # Should return 0.0.0.0
+dig @dns-standard-primary.trusted doubleclick.net  # Should return 0.0.0.0
 ```
 
 ### SSH to Instance
 
 ```bash
+ssh -i ~/.ssh/jacaranda root@dns-standard-primary.mgmt
+# Or short form (CNAME → trusted network, but SSH via mgmt)
 ssh -i ~/.ssh/jacaranda root@192.168.5.20
 ```
 
 ### Check Pi-hole Status
 
 ```bash
-ssh root@192.168.5.20 "pihole status"
+ssh root@dns-standard-primary.mgmt "pihole status"
 ```
 
 ### Force nebula-sync
 
 ```bash
-ssh root@192.168.5.21 "systemctl start nebula-sync.service"
+ssh root@dns-standard-secondary.mgmt "systemctl start nebula-sync.service"
 ```
 
 ## Troubleshooting
@@ -267,15 +266,15 @@ ssh root@joseph "journalctl -u pve-container@120 -n 50"
 ### DNS not responding
 
 ```bash
-ssh root@192.168.5.20 "ss -tlnp | grep :53"
-ssh root@192.168.5.20 "systemctl status pihole-FTL"
+ssh root@dns-standard-primary.mgmt "ss -tlnp | grep :53"
+ssh root@dns-standard-primary.mgmt "systemctl status pihole-FTL"
 ```
 
 ### Cloudflared issues
 
 ```bash
-ssh root@192.168.5.20 "systemctl status cloudflared"
-ssh root@192.168.5.20 "dig @127.0.0.1 -p 5053 google.com"
+ssh root@dns-standard-primary.mgmt "systemctl status cloudflared"
+ssh root@dns-standard-primary.mgmt "dig @127.0.0.1 -p 5053 google.com"
 ```
 
 ## DO vs DON'T
@@ -300,6 +299,8 @@ ssh root@192.168.5.20 "dig @127.0.0.1 -p 5053 google.com"
 
 | Topic | Location |
 |-------|----------|
+| Makefile standards | `.waypoint/directives/makefile-conventions.md` |
+| Services pattern | `services/CLAUDE.md` |
 | Secrets management | `secrets/Makefile` |
 | Base infrastructure | `infrastructure/terraform/` |
 | Project conventions | `CLAUDE.md` |

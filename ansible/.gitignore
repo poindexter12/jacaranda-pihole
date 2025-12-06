@@ -4,3 +4,9 @@ secrets.local.yml
 
 # Ansible
 *.retry
+
+# Logs (verbose output from make commands)
+logs/
+
+# Package cache (downloaded binaries)
+.packagecache/

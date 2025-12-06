@@ -1,0 +1,15 @@
+---
+# dns-standard-primary: Standard blocklist, Primary instance
+# Proxmox Node: joseph | LXC ID: 120
+
+profile: standard
+role: primary
+
+# Network IPs (functional naming: trusted, mgmt, storage)
+trusted_ip: "192.168.1.20"
+mgmt_ip: "192.168.5.20"
+storage_ip: "192.168.11.20"
+
+# Legacy aliases (for backward compatibility)
+dns_ip: "{{ trusted_ip }}"
+transfer_ip: "{{ storage_ip }}"

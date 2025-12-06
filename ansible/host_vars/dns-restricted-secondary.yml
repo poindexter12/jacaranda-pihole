@@ -1,0 +1,20 @@
+---
+# dns-restricted-secondary: Restricted blocklist, Secondary instance
+# Proxmox Node: maxwell | LXC ID: 123
+
+profile: restricted
+role: secondary
+
+# Network IPs (functional naming: trusted, mgmt, storage)
+trusted_ip: "192.168.1.23"
+mgmt_ip: "192.168.5.23"
+storage_ip: "192.168.11.23"
+
+# Legacy aliases (for backward compatibility)
+dns_ip: "{{ trusted_ip }}"
+transfer_ip: "{{ storage_ip }}"
+
+# Sync configuration (secondary syncs FROM primary over storage network)
+sync_partner: "dns-restricted-primary"
+sync_partner_storage_ip: "192.168.11.22"
+sync_partner_transfer_ip: "{{ sync_partner_storage_ip }}"

@@ -56,7 +56,7 @@ module "pihole" {
 
   instances = {
     # Standard profile - general ad blocking
-    "pihole-standard-20" = {
+    "dns-standard-primary" = {
       vmid          = 120
       node          = "joseph"
       dns_ip        = "192.168.1.20"
@@ -66,7 +66,7 @@ module "pihole" {
       role          = "primary"
       startup_order = 1
     }
-    "pihole-standard-21" = {
+    "dns-standard-secondary" = {
       vmid          = 121
       node          = "maxwell"
       dns_ip        = "192.168.1.21"
@@ -78,7 +78,7 @@ module "pihole" {
     }
 
     # Restricted profile - stricter blocking (e.g., kids network)
-    "pihole-restricted-22" = {
+    "dns-restricted-primary" = {
       vmid          = 122
       node          = "joseph"
       dns_ip        = "192.168.1.22"
@@ -88,7 +88,7 @@ module "pihole" {
       role          = "primary"
       startup_order = 3
     }
-    "pihole-restricted-23" = {
+    "dns-restricted-secondary" = {
       vmid          = 123
       node          = "maxwell"
       dns_ip        = "192.168.1.23"

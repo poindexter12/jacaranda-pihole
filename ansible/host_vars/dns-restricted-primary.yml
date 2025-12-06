@@ -1,0 +1,15 @@
+---
+# dns-restricted-primary: Restricted blocklist, Primary instance
+# Proxmox Node: joseph | LXC ID: 122
+
+profile: restricted
+role: primary
+
+# Network IPs (functional naming: trusted, mgmt, storage)
+trusted_ip: "192.168.1.22"
+mgmt_ip: "192.168.5.22"
+storage_ip: "192.168.11.22"
+
+# Legacy aliases (for backward compatibility)
+dns_ip: "{{ trusted_ip }}"
+transfer_ip: "{{ storage_ip }}"

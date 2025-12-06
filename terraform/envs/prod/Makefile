@@ -4,78 +4,83 @@
 
 .DEFAULT_GOAL := help
 
-.PHONY: help init plan apply destroy output validate clean
-.PHONY: test-dns test-dns-blue test-dns-green
-
 TF = terraform
 
-# Ansible configuration
-ANSIBLE_DIR = ../../ansible
-ANSIBLE_PLAYBOOK = ansible-playbook
-ANSIBLE_OPTS = -i $(ANSIBLE_DIR)/inventory/prod.yml
-
-# Secrets (centralized in secrets/services/pihole/)
-SECRETS_DIR = ../../../../../secrets/services/pihole
-SECRETS_FILE = $(SECRETS_DIR)/.secrets.local
-
-# Note: Secrets are sourced at shell time in ansible/Makefile, not parsed as Make syntax
-# This avoids corruption of passwords containing $ or # characters
-
 # ============================================================================
-# TERRAFORM
+# TARGETS
 # ============================================================================
 
-init:
+##@ Terraform
+
+init: ## Initialize Terraform
 	$(TF) init
 
-plan: init
+plan: init ## Plan changes
 	$(TF) plan
 
-apply: init
+apply: init ## Apply changes
 	$(TF) apply -auto-approve
 
-destroy:
+destroy: ## Destroy all (DANGEROUS - prompts first)
 	@echo "WARNING: This will destroy ALL production Pi-hole instances!"
 	@echo "Press Ctrl+C to cancel, or Enter to continue..."
 	@read _
 	$(TF) init
 	$(TF) destroy -auto-approve
 
-output:
+output: ## Show Terraform outputs
 	$(TF) output
 
-validate: init
+validate: init ## Validate configuration
 	$(TF) validate
 
-clean:
+clean: ## Remove .terraform directory
 	rm -rf .terraform .terraform.lock.hcl
 
-# ============================================================================
-# DNS TESTING
-# ============================================================================
+##@ Testing
 
-test-dns:
+test-dns: ## Test DNS on all 4 instances
 	@echo "=== DNS Resolution (all 4 instances) ==="
 	@for ip in 192.168.1.20 192.168.1.21 192.168.1.22 192.168.1.23; do \
 		echo -n "$$ip: "; \
 		dig @$$ip google.com +short | head -1 || echo "FAIL"; \
 	done
 
-test-dns-blue:
+test-dns-blue: ## Test primaries (.20, .22)
 	@echo "=== DNS Resolution (BLUE/primaries) ==="
 	@for ip in 192.168.1.20 192.168.1.22; do \
 		echo -n "$$ip: "; \
 		dig @$$ip google.com +short | head -1 || echo "FAIL"; \
 	done
 
-test-dns-green:
+test-dns-green: ## Test secondaries (.21, .23)
 	@echo "=== DNS Resolution (GREEN/secondaries) ==="
 	@for ip in 192.168.1.21 192.168.1.23; do \
 		echo -n "$$ip: "; \
 		dig @$$ip google.com +short | head -1 || echo "FAIL"; \
 	done
 
-test-block:
+test-dns-local: ## Test local DNS records (Pi-hole custom entries)
+	@echo "=== Local DNS Records (via primary 192.168.1.20) ==="
+	@echo "A records (.trusted network):"
+	@for host in dns-standard-primary dns-standard-secondary dns-restricted-primary dns-restricted-secondary; do \
+		result=$$(dig @192.168.1.20 $$host.trusted +short 2>/dev/null | head -1); \
+		echo "  $$host.trusted: $${result:-FAIL}"; \
+	done
+	@echo ""
+	@echo "A records (.mgmt network):"
+	@for host in dns-standard-primary dns-standard-secondary dns-restricted-primary dns-restricted-secondary; do \
+		result=$$(dig @192.168.1.20 $$host.mgmt +short 2>/dev/null | head -1); \
+		echo "  $$host.mgmt: $${result:-FAIL}"; \
+	done
+	@echo ""
+	@echo "CNAME records (naked hostname → .trusted):"
+	@for host in dns-standard-primary dns-standard-secondary dns-restricted-primary dns-restricted-secondary; do \
+		result=$$(dig @192.168.1.20 $$host +short 2>/dev/null | head -1); \
+		echo "  $$host: $${result:-FAIL}"; \
+	done
+
+test-block: ## Test ad blocking
 	@echo "=== Ad Blocking Test ==="
 	@echo "Standard (should block ads):"
 	@echo "  .20: $$(dig @192.168.1.20 doubleclick.net +short)"
@@ -84,50 +89,25 @@ test-block:
 	@echo "  .22: $$(dig @192.168.1.22 doubleclick.net +short)"
 	@echo "  .23: $$(dig @192.168.1.23 doubleclick.net +short)"
 
-# ============================================================================
-# SECRETS
-# ============================================================================
+##@ Help
 
-secrets:
-	@mkdir -p $(SECRETS_DIR)
-	@echo "Pi-hole password (used for web UI and API):"
-	@read -s -p "PIHOLE_PASSWORD: " pass && echo "PIHOLE_PASSWORD='$$pass'" > $(SECRETS_FILE) && chmod 600 $(SECRETS_FILE) && echo "" && echo "Saved to $(SECRETS_FILE)"
-
-show-secrets:
-	@if [ -f "$(SECRETS_FILE)" ]; then \
-		cat $(SECRETS_FILE); \
-	elif [ -n "$$PIHOLE_PASSWORD" ]; then \
-		echo "PIHOLE_PASSWORD=$$PIHOLE_PASSWORD (from environment)"; \
-	else \
-		echo "No password configured. Run: make secrets"; \
-	fi
-
-# ============================================================================
-# HELP
-# ============================================================================
-
-help:
+help: ## Show this help
 	@echo "Pi-hole Production Environment"
 	@echo ""
-	@echo "Terraform:"
-	@echo "  make init      - Initialize Terraform"
-	@echo "  make plan      - Plan changes"
-	@echo "  make apply     - Apply changes"
-	@echo "  make destroy   - Destroy all (DANGEROUS)"
-	@echo "  make output    - Show outputs"
+	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Testing:"
-	@echo "  make test-dns       - Test DNS on all 4 instances"
-	@echo "  make test-dns-blue  - Test primaries (.20, .22)"
-	@echo "  make test-dns-green - Test secondaries (.21, .23)"
-	@echo "  make test-block     - Test ad blocking"
-	@echo ""
-	@echo "Secrets:"
-	@echo "  make secrets         - Set password (prompts)"
-	@echo "  make show-secrets    - Display current"
+	@awk 'BEGIN {FS = ":.*##"; section=""} \
+		/^##@/ { section=substr($$0, 5); next } \
+		/^[a-zA-Z_-]+:.*?##/ { \
+			if (section != "" && section != lastsection) { \
+				printf "\n\033[1m%s\033[0m\n", section; \
+				lastsection=section \
+			} \
+			printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 \
+		}' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Instances:"
-	@echo "  pihole-standard-20   (VMID 120) - primary"
-	@echo "  pihole-standard-21   (VMID 121) - secondary"
-	@echo "  pihole-restricted-22 (VMID 122) - primary"
-	@echo "  pihole-restricted-23 (VMID 123) - secondary"
+	@echo "  dns-standard-primary    (120) - 192.168.1.20"
+	@echo "  dns-standard-secondary  (121) - 192.168.1.21"
+	@echo "  dns-restricted-primary  (122) - 192.168.1.22"
+	@echo "  dns-restricted-secondary(123) - 192.168.1.23"

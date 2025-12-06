@@ -2,141 +2,144 @@
 #
 # Orchestrates terraform (LXC creation) and ansible (Pi-hole deployment).
 # Supports test → prod promotion workflow.
+#
+# Self-documenting: run `make` or `make help` to see all targets
 
 .DEFAULT_GOAL := help
 
-.PHONY: help
-.PHONY: test-init test-plan test-apply test-destroy test-deploy test-full
-.PHONY: prod-init prod-plan prod-apply prod-destroy prod-deploy prod-full
-.PHONY: prod-upgrade prod-upgrade-green prod-validate
-.PHONY: promote
-
 # ============================================================================
-# TEST ENVIRONMENT
+# CONFIGURATION
 # ============================================================================
 
-test-init:
+# 1Password convention: op://Homelab/{service}-{env}/{field}
+OP_VAULT = Homelab
+SERVICE = pihole
+
+# ============================================================================
+# TARGETS
+# ============================================================================
+
+##@ Test Environment
+
+test-init: ## Initialize Terraform for test
 	@$(MAKE) -C terraform/envs/test init
 
-test-plan:
+test-plan: ## Show Terraform plan for test
 	@$(MAKE) -C terraform/envs/test plan
 
-test-apply:
+test-apply: ## Create test LXC (Terraform)
 	@$(MAKE) -C terraform/envs/test apply
 
-test-destroy:
+test-destroy: ## Destroy test LXC
 	@$(MAKE) -C terraform/envs/test destroy
 
-test-deploy:
+test-deploy: ## Install Pi-hole on test (Ansible)
 	@$(MAKE) -C ansible test-deploy
 
-test-full: test-apply
+test-dns: ## Register DNS entries for test
+	@$(MAKE) -C ansible test-dns
+
+test-full: test-apply ## Create LXC + wait + deploy Pi-hole
 	@echo ""
 	@echo "=== Waiting for LXC to boot (30s) ==="
 	@sleep 30
 	@$(MAKE) test-deploy
 
-# ============================================================================
-# PROD ENVIRONMENT
-# ============================================================================
+##@ Production Environment
 
-prod-init:
+prod-init: ## Initialize Terraform for prod
 	@$(MAKE) -C terraform/envs/prod init
 
-prod-plan:
+prod-plan: ## Show Terraform plan for prod
 	@$(MAKE) -C terraform/envs/prod plan
 
-prod-apply:
+prod-apply: ## Create/update prod LXCs (Terraform)
 	@$(MAKE) -C terraform/envs/prod apply
 
-prod-destroy:
+prod-destroy: ## Destroy all prod LXCs (DANGEROUS)
 	@$(MAKE) -C terraform/envs/prod destroy
 
-prod-deploy:
+prod-deploy: ## Install Pi-hole on prod (Ansible)
 	@$(MAKE) -C ansible prod-deploy
 
-prod-full: prod-apply
+prod-dns: ## Register DNS entries for prod
+	@$(MAKE) -C ansible prod-dns
+
+prod-full: prod-apply ## Create LXCs + wait + deploy Pi-hole
 	@echo ""
 	@echo "=== Waiting for LXCs to boot (30s) ==="
 	@sleep 30
 	@$(MAKE) prod-deploy
 
-prod-validate:
+prod-validate: ## Run DNS tests on prod
 	@$(MAKE) -C terraform/envs/prod test-dns
 
-# ============================================================================
-# UPGRADES
-# ============================================================================
+prod-validate-local: ## Test local DNS records (Pi-hole custom entries)
+	@$(MAKE) -C terraform/envs/prod test-dns-local
 
-prod-upgrade:
-	@$(MAKE) -C ansible prod-upgrade
+##@ Blue-Green Deployment
 
-prod-upgrade-green:
+prod-deploy-green: ## Deploy to secondaries first (green)
+	@$(MAKE) -C ansible prod-deploy-green
+
+prod-deploy-blue: ## Deploy to primaries after verification (blue)
+	@$(MAKE) -C ansible prod-deploy-blue
+
+prod-destroy-green: ## Destroy secondaries only
+	@echo "=== Destroying secondaries (green) ==="
+	cd terraform/envs/prod && terraform destroy -compact-warnings \
+		-target='module.pihole.proxmox_lxc.pihole["dns-standard-secondary"]' \
+		-target='module.pihole.proxmox_lxc.pihole["dns-restricted-secondary"]'
+
+prod-destroy-blue: ## Destroy primaries only
+	@echo "=== Destroying primaries (blue) ==="
+	cd terraform/envs/prod && terraform destroy -compact-warnings \
+		-target='module.pihole.proxmox_lxc.pihole["dns-standard-primary"]' \
+		-target='module.pihole.proxmox_lxc.pihole["dns-restricted-primary"]'
+
+##@ Upgrades
+
+prod-upgrade-blue: ## Upgrade primaries (blue) - step 1
+	@$(MAKE) -C ansible prod-upgrade-blue
+
+prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 	@$(MAKE) -C ansible prod-upgrade-green
 
-# ============================================================================
-# SECRETS (centralized in secrets/services/pihole/)
-# ============================================================================
+##@ Secrets
 
-SECRETS_DIR = ../../secrets/services/pihole
-SECRETS_FILE = $(SECRETS_DIR)/.secrets.local
+check-secrets: ## Verify 1Password items exist
+	@$(MAKE) -C ansible check-secrets
 
-# Note: Special characters in passwords are handled safely - the secrets file
-# is sourced at shell time in ansible/Makefile, not parsed as Makefile syntax
+##@ Workflow
 
-secrets:
-	@mkdir -p $(SECRETS_DIR)
-	@echo "Pi-hole password (used for web UI and API):"
-	@read -s -p "PIHOLE_PASSWORD: " pass && echo "PIHOLE_PASSWORD='$$pass'" > $(SECRETS_FILE) && chmod 600 $(SECRETS_FILE) && echo "" && echo "Saved to $(SECRETS_FILE)"
-
-show-secrets:
-	@if [ -f $(SECRETS_FILE) ]; then cat $(SECRETS_FILE); else echo "No secrets file. Run: make secrets"; fi
-
-# ============================================================================
-# PROMOTION WORKFLOW
-# ============================================================================
-
-# Full promotion: test LXC → deploy Pi-hole → validate → prompt for prod
-promote: test-full
+promote: test-full ## Full test deployment + validation
 	@echo ""
 	@$(MAKE) -C terraform/envs/test test-dns
 	@echo ""
 	@echo "=== Test instance deployed and validated ==="
 	@echo "Run 'make prod-full' to deploy to production"
 
-# ============================================================================
-# HELP
-# ============================================================================
+##@ Help
 
-help:
-	@echo "Pi-hole Service"
+help: ## Show this help
+	@echo "Pi-hole Service (DNS)"
 	@echo ""
-	@echo "Test Environment:"
-	@echo "  make test-apply     - Create test LXC (Terraform)"
-	@echo "  make test-deploy    - Install Pi-hole (Ansible)"
-	@echo "  make test-full      - Create LXC + install Pi-hole"
-	@echo "  make test-destroy   - Destroy test LXC"
+	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Production Environment:"
-	@echo "  make prod-apply     - Create/update LXCs (Terraform)"
-	@echo "  make prod-deploy    - Install Pi-hole (Ansible)"
-	@echo "  make prod-full      - Create LXCs + install Pi-hole"
-	@echo "  make prod-validate  - Run DNS tests"
-	@echo "  make prod-destroy   - Destroy all (DANGEROUS)"
+	@awk 'BEGIN {FS = ":.*##"; section=""} \
+		/^##@/ { section=substr($$0, 5); next } \
+		/^[a-zA-Z_-]+:.*?##/ { \
+			if (section != "" && section != lastsection) { \
+				printf "\n\033[1m%s\033[0m\n", section; \
+				lastsection=section \
+			} \
+			printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 \
+		}' $(MAKEFILE_LIST)
 	@echo ""
-	@echo "Upgrades:"
-	@echo "  make prod-upgrade       - Upgrade primaries (blue)"
-	@echo "  make prod-upgrade-green - Upgrade secondaries (green)"
-	@echo ""
-	@echo "Workflow:"
-	@echo "  make promote        - Full test deployment + validation"
-	@echo ""
-	@echo "Secrets:"
-	@echo "  make secrets            - Set PIHOLE_PASSWORD (prompts)"
-	@echo "  make show-secrets       - Display current password"
+	@echo "Secrets: op://$(OP_VAULT)/$(SERVICE)-{test,prod}/webpassword"
 	@echo ""
 	@echo "Typical flow:"
-	@echo "  1. make secrets         # Set password first"
-	@echo "  2. make test-full       # Create test LXC + install Pi-hole"
-	@echo "  3. make test-destroy    # Clean up test"
+	@echo "  1. make check-secrets   # Verify 1Password"
+	@echo "  2. make test-full       # Create + deploy test"
+	@echo "  3. make test-dns        # Register DNS"
 	@echo "  4. make prod-full       # Deploy to production"
