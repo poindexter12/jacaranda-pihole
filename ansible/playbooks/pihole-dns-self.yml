@@ -51,23 +51,48 @@
       debug:
         msg: "{{ dns_cname_records | from_yaml }}"
 
-    - name: Add DNS A records to Pi-hole
+    # Pi-hole v6 uses pihole-FTL --config dns.hosts instead of /etc/pihole/custom.list
+    # The dns.hosts config is a JSON array of "IP HOSTNAME" strings
+    - name: Build list of DNS entries to add
+      set_fact:
+        # Format: ["IP HOSTNAME", ...] for pihole-FTL --config dns.hosts
+        dns_record_list: "{{ dns_a_records | from_yaml }}"
+
+    - name: Format DNS entries as "IP HOSTNAME" strings
+      set_fact:
+        new_dns_entries: >-
+          {{ dns_record_list | map(attribute='ip') |
+             zip(dns_record_list | map(attribute='hostname')) |
+             map('join', ' ') | list }}
+
+    - name: Get current DNS hosts from Pi-hole v6
       delegate_to: "{{ dns_admin_ip }}"
       vars:
         ansible_user: root
         ansible_ssh_private_key_file: "{{ dns_ssh_key }}"
         ansible_ssh_common_args: "-o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
-      shell: |
-        # Check if record exists, add if not
-        if ! grep -q "^{{ item.ip }} {{ item.hostname }}$" /etc/pihole/custom.list 2>/dev/null; then
-          echo "{{ item.ip }} {{ item.hostname }}" >> /etc/pihole/custom.list
-          echo "added"
-        else
-          echo "exists"
-        fi
-      loop: "{{ dns_a_records | from_yaml }}"
+      shell: pihole-FTL --config dns.hosts
+      register: current_dns_hosts
+      changed_when: false
+
+    - name: Parse and merge DNS entries
+      set_fact:
+        current_hosts: "{{ current_dns_hosts.stdout | from_json }}"
+        merged_hosts: "{{ ((current_dns_hosts.stdout | from_json) + new_dns_entries) | unique | sort }}"
+
+    - name: Determine if update needed
+      set_fact:
+        dns_update_needed: "{{ (new_dns_entries | difference(current_hosts)) | length > 0 }}"
+
+    - name: Update DNS hosts in Pi-hole v6
+      delegate_to: "{{ dns_admin_ip }}"
+      vars:
+        ansible_user: root
+        ansible_ssh_private_key_file: "{{ dns_ssh_key }}"
+        ansible_ssh_common_args: "-o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
+      shell: "pihole-FTL --config dns.hosts '{{ merged_hosts | to_json }}'"
+      when: dns_update_needed
       register: dns_a_result
-      changed_when: "'added' in dns_a_result.stdout"
 
     - name: Add CNAME records to dnsmasq
       delegate_to: "{{ dns_admin_ip }}"
@@ -87,14 +112,15 @@
         mode: "0644"
       register: cname_result
 
-    - name: Restart DNS service
+    # Pi-hole v6: dns.hosts changes auto-reload, but CNAME changes need dnsmasq reload
+    - name: Reload DNS service for CNAME changes
       delegate_to: "{{ dns_admin_ip }}"
       vars:
         ansible_user: root
         ansible_ssh_private_key_file: "{{ dns_ssh_key }}"
         ansible_ssh_common_args: "-o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
-      command: pihole restartdns
-      when: dns_a_result.changed or cname_result.changed
+      command: systemctl reload pihole-FTL
+      when: cname_result.changed
 
     - name: Summary
       debug:

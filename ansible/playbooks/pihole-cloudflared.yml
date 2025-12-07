@@ -129,9 +129,11 @@
       notify: Restart pihole-FTL
       tags: [pihole]
 
+    # Pi-hole v6: use systemctl instead of deprecated pihole restartdns
     - name: Restart Pi-hole DNS resolver
-      ansible.builtin.command:
-        cmd: pihole restartdns
+      ansible.builtin.systemd:
+        name: pihole-FTL
+        state: restarted
       changed_when: true
       tags: [pihole]
 
