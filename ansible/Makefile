@@ -29,6 +29,7 @@ SERVICE = pihole
 # INCLUDES
 # ============================================================================
 
+include ../../../infrastructure/ansible/common.mk
 include ../../../infrastructure/ansible/fetch.mk
 
 # ============================================================================

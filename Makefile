@@ -77,6 +77,9 @@ prod-validate: ## Run DNS tests on prod
 prod-validate-local: ## Test local DNS records (Pi-hole custom entries)
 	@$(MAKE) -C terraform/envs/prod test-dns-local
 
+prod-sign-certs: ## Sign host certificates with production CA
+	@$(MAKE) -C ansible prod-sign-certs
+
 ##@ Blue-Green Deployment
 
 prod-deploy-green: ## Deploy to secondaries first (green)
