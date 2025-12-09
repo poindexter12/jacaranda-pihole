@@ -38,76 +38,88 @@ include ../../../infrastructure/ansible/fetch.mk
 ##@ Test Environment
 
 ping-test: ## Test connectivity to test hosts
-	$(ANSIBLE) -i inventory/test.yml all -m ping
+	$(ANSIBLE) -i inventory/test.yaml all -m ping
 
 test-deploy: fetch test-pihole test-cloudflared ## Full test deployment (pihole + cloudflared)
 	@echo "Test deployment complete"
 
+test-sign-certs: ## Sign host certificates for test (uses test CA)
+	@$(MAKE) -C ../../../ansible sign-certs-test INVENTORY=$(CURDIR)/inventory/test.yaml
+
+test-ssh-ca: test-sign-certs ## Configure SSH CA on test (sign + configure)
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/ssh-ca.yaml
+
 test-pihole: ## Install Pi-hole on test
-	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-lxc.yml \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-lxc.yml \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-test/webpassword')"
 
 test-cloudflared: ## Install cloudflared on test
-	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-cloudflared.yml
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-cloudflared.yml
 
 test-dns: ## Register DNS entries for test instances
-	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yml playbooks/pihole-dns-self.yml
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-dns-self.yml
 
 ##@ Production Environment
 
 ping-prod: ## Test connectivity to prod hosts
-	$(ANSIBLE) -i inventory/prod.yml all -m ping
+	$(ANSIBLE) -i inventory/prod.yaml all -m ping
 
 prod-deploy: fetch prod-pihole prod-cloudflared prod-nebula-sync ## Full prod deployment
 	@echo "Production deployment complete"
 
+prod-sign-certs: ## Sign host certificates for prod
+	@$(MAKE) -C ../../../ansible sign-certs INVENTORY=$(CURDIR)/inventory/prod.yaml
+
+prod-ssh-ca: prod-sign-certs ## Configure SSH CA on prod (sign + configure)
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/ssh-ca.yaml
+
 prod-pihole: ## Install Pi-hole on prod
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-cloudflared: ## Install cloudflared on prod
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml
 
 prod-nebula-sync: ## Install nebula-sync on prod secondaries
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/nebula-sync.yml \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/nebula-sync.yml \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-dns: ## Register DNS entries for prod instances
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-dns-self.yml
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-dns-self.yml
 
 ##@ Blue-Green Deployment
 
 prod-deploy-green: fetch ## Deploy to secondaries first (green)
 	@echo "=== Deploying to secondaries (green) ==="
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml --limit pihole_secondary \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_secondary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml --limit pihole_secondary
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/nebula-sync.yml --limit pihole_secondary \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_secondary
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/nebula-sync.yml --limit pihole_secondary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-deploy-blue: fetch ## Deploy to primaries after verification (blue)
 	@echo "=== Deploying to primaries (blue) ==="
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-lxc.yml --limit pihole_primary \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_primary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-cloudflared.yml --limit pihole_primary
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_primary
 
 ##@ Upgrades
 
 prod-upgrade-blue: ## Upgrade primaries (blue) - step 1
 	@echo "=== Blue-Green Upgrade ==="
 	@echo "Step 1: Upgrade primaries (blue)"
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --limit pihole_primary \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --limit pihole_primary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@echo ""
 	@echo "Verify primaries are working, then run: make prod-upgrade-green"
 
 prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 	@echo "Step 2: Upgrade secondaries (green)"
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --limit pihole_secondary \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --limit pihole_secondary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-upgrade-check: ## Check versions without changes
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yml playbooks/pihole-upgrade.yml --tags check
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --tags check
 
 ##@ Secrets
 
