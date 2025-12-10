@@ -22,6 +22,29 @@ provider "registry.terraform.io/hashicorp/local" {
   ]
 }
 
+provider "registry.terraform.io/ryanwholey/pihole" {
+  version     = "2.0.0-beta.1"
+  constraints = "2.0.0-beta.1"
+  hashes = [
+    "h1:u1I9C4k4xTnM2ngeqnDuNxrUQaqWqujP3hwhPrAo9sw=",
+    "zh:02b61dfbdf0729b8fc4078cedd883334ae5a5360999e6c74255a3a55d5e7b1fd",
+    "zh:0e7502067463236fd68ea558b6a68d5b37e2d3eea4e52355e2db46de78896402",
+    "zh:1335a746f4b9507103c067fb72854db42426cd1503ff18f803c040555d64c172",
+    "zh:1ae696498f377bab1f959881580ef98af7f711c59a1c5d17044cc8288dafc1aa",
+    "zh:3ba0a0b2b7127dbd38b4b1ac65a6b1568332bb4dbad5cb5bc27b07d85ec5f369",
+    "zh:4b25d770e7664b971ed667f4c4fd4aea812704dc490c1f35e85da7bc476e6d5c",
+    "zh:4b459c231ae51d5f206ec34233933d41668c199df19cbdcbbb7aa5ef09701df9",
+    "zh:5e7f6b6caa272d34432956648b5f12b107957f9cb5e4bb8ca2a054c27350de8f",
+    "zh:6b6dc50b623074d880c0dff315ae717a320c9638f52b50303262953c1733ef0d",
+    "zh:775bd9cb0411c11bcb40646a60354e8346678c00e297bd0e1305c6dec834815f",
+    "zh:887267938b4b993da80119587ddee46355f9c51e8244d68de6fb32ddedbd9546",
+    "zh:8b99a65842b414930bf44ffb6d729d6fdfd35fcfe639e11c9c564dfaf10fb68a",
+    "zh:8be0072af4e07d91ee6a4fa0cbe4f56e3325ec5d213f76be9e395ca0eac116fe",
+    "zh:9efbfde422b6dd226ae59ec0c286953977f8ad04690c85e4f681f171dc5a8088",
+    "zh:d26570107355722e5e4c7d1d4731c7171f1f11a6425f92481f77fd3f832a2ea6",
+  ]
+}
+
 provider "registry.terraform.io/telmate/proxmox" {
   version     = "3.0.2-rc04"
   constraints = "3.0.2-rc04"

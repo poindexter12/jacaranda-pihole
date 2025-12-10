@@ -11,6 +11,10 @@ terraform {
       source  = "Telmate/proxmox"
       version = "= 3.0.2-rc04"
     }
+    pihole = {
+      source  = "ryanwholey/pihole"
+      version = "= 2.0.0-beta.1" # Required for Pi-hole v6 API
+    }
   }
 }
 
@@ -40,6 +44,18 @@ provider "proxmox" {
   pm_api_token_secret = local.base.proxmox_api_token_secret
   pm_tls_insecure     = local.base.proxmox_tls_insecure
   pm_timeout          = 600
+}
+
+# Pi-hole DNS provider (self-referential - Pi-hole manages its own DNS entries)
+variable "pihole_password" {
+  description = "Pi-hole admin password for DNS API"
+  type        = string
+  sensitive   = true
+}
+
+provider "pihole" {
+  url      = "http://192.168.5.20"
+  password = var.pihole_password
 }
 
 # ============================================================================
@@ -128,4 +144,30 @@ output "primary_instances" {
 output "secondary_instances" {
   description = "Secondary instances (nebula-sync target)"
   value       = module.pihole.secondary_instances
+}
+
+# ============================================================================
+# DNS Records (Pi-hole)
+# ============================================================================
+# Self-referential: Pi-hole instances register themselves in Pi-hole DNS
+
+resource "pihole_dns_record" "pihole_trusted" {
+  for_each = module.pihole.dns_ips
+
+  domain = "${each.key}.trusted"
+  ip     = each.value
+}
+
+resource "pihole_dns_record" "pihole_mgmt" {
+  for_each = module.pihole.mgmt_ips
+
+  domain = "${each.key}.mgmt"
+  ip     = each.value
+}
+
+resource "pihole_dns_record" "pihole_storage" {
+  for_each = module.pihole.transfer_ips
+
+  domain = "${each.key}.storage"
+  ip     = each.value
 }

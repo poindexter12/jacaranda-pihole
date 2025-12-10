@@ -5,6 +5,10 @@
 .DEFAULT_GOAL := help
 
 TF = terraform
+OP_VAULT = Homelab
+
+# Terraform with Pi-hole password
+TF_PIHOLE = TF_VAR_pihole_password=$$(op read 'op://$(OP_VAULT)/pihole-prod/webpassword') $(TF)
 
 # ============================================================================
 # TARGETS
@@ -16,17 +20,17 @@ init: ## Initialize Terraform
 	$(TF) init
 
 plan: init ## Plan changes
-	$(TF) plan
+	@$(TF_PIHOLE) plan
 
 apply: init ## Apply changes
-	$(TF) apply -auto-approve
+	@$(TF_PIHOLE) apply -auto-approve
 
 destroy: ## Destroy all (DANGEROUS - prompts first)
 	@echo "WARNING: This will destroy ALL production Pi-hole instances!"
 	@echo "Press Ctrl+C to cancel, or Enter to continue..."
 	@read _
 	$(TF) init
-	$(TF) destroy -auto-approve
+	@$(TF_PIHOLE) destroy -auto-approve
 
 output: ## Show Terraform outputs
 	$(TF) output
