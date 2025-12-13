@@ -299,7 +299,7 @@ ssh root@dns-standard-primary.mgmt "dig @127.0.0.1 -p 5053 google.com"
 
 | Topic | Location |
 |-------|----------|
-| Makefile standards | `.waypoint/directives/makefile-conventions.md` |
+| Makefile standards | `.claude/directives/makefile-conventions.md` |
 | Services pattern | `services/CLAUDE.md` |
 | Secrets management | `secrets/Makefile` |
 | Base infrastructure | `infrastructure/terraform/` |
