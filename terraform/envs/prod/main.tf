@@ -12,8 +12,8 @@ terraform {
       version = "= 3.0.2-rc04"
     }
     pihole = {
-      source  = "ryanwholey/pihole"
-      version = "= 2.0.0-beta.1" # Required for Pi-hole v6 API
+      source  = "registry.terraform.io/poindexter12/pihole"
+      version = ">= 1.0.0"
     }
   }
 }

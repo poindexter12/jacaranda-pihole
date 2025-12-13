@@ -4,36 +4,40 @@
 
 .DEFAULT_GOAL := help
 
-TF = terraform
+TF = ~/.asdf/shims/tofu
 OP_VAULT = Homelab
 
-# Terraform with Pi-hole password
+# Encryption passphrase from 1Password
+ENCRYPTION_PASSPHRASE = $$(op read 'op://$(OP_VAULT)/opentofu/password')
+TF_FLAGS = -var="encryption_passphrase=$(ENCRYPTION_PASSPHRASE)"
+
+# Terraform with Pi-hole password + encryption
 TF_PIHOLE = TF_VAR_pihole_password=$$(op read 'op://$(OP_VAULT)/pihole-prod/webpassword') $(TF)
 
 # ============================================================================
 # TARGETS
 # ============================================================================
 
-##@ Terraform
+##@ OpenTofu
 
-init: ## Initialize Terraform
-	$(TF) init
+init: ## Initialize OpenTofu
+	$(TF) init $(TF_FLAGS)
 
 plan: init ## Plan changes
-	@$(TF_PIHOLE) plan
+	@$(TF_PIHOLE) plan $(TF_FLAGS)
 
 apply: init ## Apply changes
-	@$(TF_PIHOLE) apply -auto-approve
+	@$(TF_PIHOLE) apply -auto-approve $(TF_FLAGS)
 
 destroy: ## Destroy all (DANGEROUS - prompts first)
 	@echo "WARNING: This will destroy ALL production Pi-hole instances!"
 	@echo "Press Ctrl+C to cancel, or Enter to continue..."
 	@read _
-	$(TF) init
-	@$(TF_PIHOLE) destroy -auto-approve
+	$(TF) init $(TF_FLAGS)
+	@$(TF_PIHOLE) destroy -auto-approve $(TF_FLAGS)
 
-output: ## Show Terraform outputs
-	$(TF) output
+output: ## Show OpenTofu outputs
+	$(TF) output $(TF_FLAGS)
 
 validate: init ## Validate configuration
 	$(TF) validate

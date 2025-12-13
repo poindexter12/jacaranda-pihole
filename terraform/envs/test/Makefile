@@ -4,28 +4,32 @@
 
 .DEFAULT_GOAL := help
 
-TF = terraform
+TF = ~/.asdf/shims/tofu
+
+# Encryption passphrase from 1Password
+ENCRYPTION_PASSPHRASE = $$(op read 'op://Homelab/opentofu/password')
+TF_FLAGS = -var="encryption_passphrase=$(ENCRYPTION_PASSPHRASE)"
 
 # ============================================================================
 # TARGETS
 # ============================================================================
 
-##@ Terraform
+##@ OpenTofu
 
-init: ## Initialize Terraform
-	$(TF) init
+init: ## Initialize OpenTofu
+	$(TF) init $(TF_FLAGS)
 
 plan: init ## Plan changes
-	$(TF) plan
+	$(TF) plan $(TF_FLAGS)
 
 apply: init ## Create test instance
-	$(TF) apply -auto-approve
+	$(TF) apply -auto-approve $(TF_FLAGS)
 
 destroy: init ## Destroy test instance
-	$(TF) destroy -auto-approve
+	$(TF) destroy -auto-approve $(TF_FLAGS)
 
-output: ## Show Terraform outputs
-	$(TF) output
+output: ## Show OpenTofu outputs
+	$(TF) output $(TF_FLAGS)
 
 validate: init ## Validate configuration
 	$(TF) validate
