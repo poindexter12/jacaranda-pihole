@@ -26,6 +26,8 @@ provider "registry.terraform.io/ryanwholey/pihole" {
   version     = "2.0.0-beta.1"
   constraints = "2.0.0-beta.1"
   hashes = [
+    "h1:BGHku+l3aJfWtjE0kA0nY8LnYc87aMvHSCI830kLcgQ=",
+    "h1:YzrR8N3dNnfMukvRqkC/BsK3FhaDu2WWJK7tdbaZNqs=",
     "h1:u1I9C4k4xTnM2ngeqnDuNxrUQaqWqujP3hwhPrAo9sw=",
     "zh:02b61dfbdf0729b8fc4078cedd883334ae5a5360999e6c74255a3a55d5e7b1fd",
     "zh:0e7502067463236fd68ea558b6a68d5b37e2d3eea4e52355e2db46de78896402",

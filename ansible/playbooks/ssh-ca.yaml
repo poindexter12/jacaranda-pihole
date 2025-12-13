@@ -20,6 +20,6 @@
   roles:
     - role: ../../../../ansible/roles/ssh-ca
       vars:
-        ssh_ca_user_pubkey: "{{ lookup('pipe', 'op read op://Homelab/ssh-ca-user/public_key') }}"
+        ssh_ca_user_pubkey: "{{ lookup('pipe', 'op read op://SSH-CA/ssh-ca-user/public_key') }}"
         # Keep authorized_keys as fallback initially
         ssh_ca_clear_authorized_keys: false

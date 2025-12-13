@@ -110,13 +110,6 @@
     # =========================================================================
     # PI-HOLE CONFIGURATION
     # =========================================================================
-    - name: Set Pi-hole admin password
-      ansible.builtin.command:
-        cmd: pihole -a -p "{{ pihole_password }}"
-      changed_when: true
-      no_log: true
-      tags: [configure]
-
     - name: Set timezone
       ansible.builtin.command:
         cmd: timedatectl set-timezone {{ pihole_timezone }}
@@ -163,6 +156,28 @@
         enabled: true
       tags: [configure]
 
+    # Flush handlers (restart FTL) before setting password
+    - name: Flush handlers to ensure FTL restart completes
+      ansible.builtin.meta: flush_handlers
+      tags: [configure]
+
+    - name: Wait for FTL to stabilize after restart
+      ansible.builtin.pause:
+        seconds: 10
+      tags: [configure]
+
+    # =========================================================================
+    # SET PASSWORD (after all restarts complete)
+    # =========================================================================
+    - name: Set Pi-hole admin password
+      # Pi-hole v6 uses 'setpassword' instead of '-a -p'
+      # Set AFTER all config changes to avoid restart wiping password
+      ansible.builtin.command:
+        cmd: pihole setpassword '{{ pihole_password }}'
+      changed_when: true
+      no_log: true
+      tags: [configure]
+
     # =========================================================================
     # VERIFICATION
     # =========================================================================
@@ -190,8 +205,33 @@
         url: "http://{{ mgmt_ip }}/admin/"
         status_code: [200, 302]
       register: web_check
+      retries: 6
+      delay: 10
+      delegate_to: localhost
+      tags: [verify]
+
+    - name: Verify password authentication works
+      ansible.builtin.uri:
+        url: "http://{{ mgmt_ip }}/api/auth"
+        method: POST
+        body_format: json
+        body:
+          password: "{{ pihole_password }}"
+        status_code: [200]
+        return_content: true
+      register: auth_check
       retries: 3
       delay: 5
+      no_log: true
+      delegate_to: localhost
+      tags: [verify]
+
+    - name: Assert password authentication succeeded
+      ansible.builtin.assert:
+        that:
+          - "'password correct' in auth_check.content"
+        fail_msg: "Password authentication failed - response: {{ auth_check.content }}"
+        success_msg: "Password authentication verified"
       tags: [verify]
 
     - name: Display verification results
