@@ -41,7 +41,7 @@ include ../../../infrastructure/ansible/fetch.mk
 ping-test: ## Test connectivity to test hosts
 	$(ANSIBLE) -i inventory/test.yaml all -m ping
 
-test-deploy: fetch test-pihole test-cloudflared ## Full test deployment (pihole + cloudflared)
+test-deploy: fetch test-ssh-ca test-pihole test-cloudflared ## Full test deployment (ssh-ca + pihole + cloudflared)
 	@echo "Test deployment complete"
 
 test-sign-certs: ## Sign host certificates for test (uses test CA)
@@ -65,7 +65,7 @@ test-dns: ## Register DNS entries for test instances
 ping-prod: ## Test connectivity to prod hosts
 	$(ANSIBLE) -i inventory/prod.yaml all -m ping
 
-prod-deploy: fetch prod-pihole prod-cloudflared prod-nebula-sync ## Full prod deployment
+prod-deploy: fetch prod-ssh-ca prod-pihole prod-cloudflared prod-nebula-sync ## Full prod deployment (ssh-ca + pihole + cloudflared + nebula-sync)
 	@echo "Production deployment complete"
 
 prod-sign-certs: ## Sign host certificates for prod
@@ -90,7 +90,7 @@ prod-dns: ## Register DNS entries for prod instances
 
 ##@ Blue-Green Deployment
 
-prod-deploy-green: fetch ## Deploy to secondaries first (green)
+prod-deploy-green: fetch prod-ssh-ca-green ## Deploy to secondaries first (green)
 	@echo "=== Deploying to secondaries (green) ==="
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_secondary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
@@ -98,11 +98,21 @@ prod-deploy-green: fetch ## Deploy to secondaries first (green)
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/nebula-sync.yml --limit pihole_secondary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
-prod-deploy-blue: fetch ## Deploy to primaries after verification (blue)
+prod-deploy-blue: fetch prod-ssh-ca-blue ## Deploy to primaries after verification (blue)
 	@echo "=== Deploying to primaries (blue) ==="
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_primary \
 		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_primary
+
+prod-ssh-ca-green: ## Sign and configure SSH CA for secondaries
+	@echo "=== Configuring SSH CA on secondaries (green) ==="
+	@$(MAKE) -C ../../../ansible sign-certs INVENTORY=$(CURDIR)/inventory/prod.yaml EXTRA_ARGS="--limit pihole_secondary"
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/ssh-ca.yaml --limit pihole_secondary
+
+prod-ssh-ca-blue: ## Sign and configure SSH CA for primaries
+	@echo "=== Configuring SSH CA on primaries (blue) ==="
+	@$(MAKE) -C ../../../ansible sign-certs INVENTORY=$(CURDIR)/inventory/prod.yaml EXTRA_ARGS="--limit pihole_primary"
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/ssh-ca.yaml --limit pihole_primary
 
 ##@ Upgrades
 

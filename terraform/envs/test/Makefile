@@ -6,8 +6,9 @@
 
 TF = ~/.asdf/shims/tofu
 
-# Encryption passphrase from 1Password
-ENCRYPTION_PASSPHRASE = $$(op read 'op://Homelab/opentofu/password')
+# Secrets from 1Password
+OP_VAULT = Homelab
+ENCRYPTION_PASSPHRASE = $$(op read 'op://$(OP_VAULT)/opentofu/password')
 TF_FLAGS = -var="encryption_passphrase=$(ENCRYPTION_PASSPHRASE)"
 
 # ============================================================================
@@ -43,11 +44,11 @@ test: test-ssh test-dns ## Run all tests
 
 test-dns: ## Test DNS resolution
 	@echo "=== DNS Resolution Test ==="
-	@dig @192.168.1.99 google.com +short && echo "DNS: PASS" || echo "DNS: FAIL"
+	@dig @192.168.1.199 google.com +short && echo "DNS: PASS" || echo "DNS: FAIL"
 
 test-ssh: ## Test SSH connectivity
 	@echo "=== SSH Test ==="
-	@ssh -o ConnectTimeout=5 root@192.168.5.99 "hostname" && echo "SSH: PASS" || echo "SSH: FAIL"
+	@ssh -o ConnectTimeout=5 root@192.168.5.199 "hostname" && echo "SSH: PASS" || echo "SSH: FAIL"
 
 ##@ Help
 
@@ -66,6 +67,6 @@ help: ## Show this help
 			printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 \
 		}' $(MAKEFILE_LIST)
 	@echo ""
-	@echo "Instance: dns-test (VMID 199)"
-	@echo "  DNS IP:  192.168.1.99"
-	@echo "  Mgmt IP: 192.168.5.99"
+	@echo "Instance: dns-test (VMID 1199)"
+	@echo "  DNS IP:  192.168.1.199"
+	@echo "  Mgmt IP: 192.168.5.199"

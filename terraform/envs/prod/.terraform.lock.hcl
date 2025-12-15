@@ -17,6 +17,22 @@ provider "registry.opentofu.org/hashicorp/local" {
   ]
 }
 
+provider "registry.opentofu.org/poindexter12/pihole" {
+  version     = "1.0.0"
+  constraints = ">= 1.0.0"
+  hashes = [
+    "h1:DWrjY5geXr239g6cxxcSzDSJmEtC1Ur9bddBlhUlk4E=",
+    "zh:35e83227c5852ba485bda4210ec5d6a748d79e905af35572dd9aa4fa0b276658",
+    "zh:49ee5c8347e07ef61278757b8bda55348f321f5f8bf68b7caf43e78317d21ce1",
+    "zh:775bd9cb0411c11bcb40646a60354e8346678c00e297bd0e1305c6dec834815f",
+    "zh:84dd0d132976f68d547c43ef889a175d31976a4b3c137b6d2544f403964ea1df",
+    "zh:92124ce7b656b4dd8a5df73a7ace35d26f2945d1d960aef972eae3ef643c031c",
+    "zh:b783995fbf853e1d3060721c2689f5d8a6382a29c321cbaf08a618cc0859da9f",
+    "zh:be726b90b4fec1efc340380069677874796da4e4c6854547031a7b28bb0a1a0c",
+    "zh:d200f44097770a9864afc177180e57e1e1c94c7b69059621a8ded096c7f9d724",
+  ]
+}
+
 provider "registry.opentofu.org/telmate/proxmox" {
   version     = "3.0.2-rc04"
   constraints = "3.0.2-rc04"
@@ -36,21 +52,5 @@ provider "registry.opentofu.org/telmate/proxmox" {
     "zh:bdb7c2b78cfe039247948fa75fad49f871f8a8bb9b969aec4c45a24edc80ab0f",
     "zh:c16209a6748f87a379a5a3132ca4f471a4807bd478664499593e09433ba39b7b",
     "zh:cb015fb4a0a50d151c35c6a3505cdf7a337edd0b65eba82a43c8142c523adfb8",
-  ]
-}
-
-provider "registry.terraform.io/poindexter12/pihole" {
-  version     = "1.0.0"
-  constraints = ">= 1.0.0"
-  hashes = [
-    "h1:DWrjY5geXr239g6cxxcSzDSJmEtC1Ur9bddBlhUlk4E=",
-    "zh:35e83227c5852ba485bda4210ec5d6a748d79e905af35572dd9aa4fa0b276658",
-    "zh:49ee5c8347e07ef61278757b8bda55348f321f5f8bf68b7caf43e78317d21ce1",
-    "zh:775bd9cb0411c11bcb40646a60354e8346678c00e297bd0e1305c6dec834815f",
-    "zh:84dd0d132976f68d547c43ef889a175d31976a4b3c137b6d2544f403964ea1df",
-    "zh:92124ce7b656b4dd8a5df73a7ace35d26f2945d1d960aef972eae3ef643c031c",
-    "zh:b783995fbf853e1d3060721c2689f5d8a6382a29c321cbaf08a618cc0859da9f",
-    "zh:be726b90b4fec1efc340380069677874796da4e4c6854547031a7b28bb0a1a0c",
-    "zh:d200f44097770a9864afc177180e57e1e1c94c7b69059621a8ded096c7f9d724",
   ]
 }

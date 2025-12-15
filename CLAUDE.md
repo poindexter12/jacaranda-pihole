@@ -23,10 +23,10 @@ make prod-dns          # Register DNS entries for Pi-holes
 
 | Hostname | VMID | Node | Profile | Role | Trusted IP | Mgmt IP | Storage IP |
 |----------|------|------|---------|------|------------|---------|------------|
-| dns-standard-primary | 120 | joseph | standard | primary | 192.168.1.20 | 192.168.5.20 | 192.168.11.20 |
-| dns-standard-secondary | 121 | maxwell | standard | secondary | 192.168.1.21 | 192.168.5.21 | 192.168.11.21 |
-| dns-restricted-primary | 122 | joseph | restricted | primary | 192.168.1.22 | 192.168.5.22 | 192.168.11.22 |
-| dns-restricted-secondary | 123 | maxwell | restricted | secondary | 192.168.1.23 | 192.168.5.23 | 192.168.11.23 |
+| dns-standard-primary | 1020 | joseph | standard | primary | 192.168.1.20 | 192.168.5.20 | 192.168.11.20 |
+| dns-standard-secondary | 1021 | maxwell | standard | secondary | 192.168.1.21 | 192.168.5.21 | 192.168.11.21 |
+| dns-restricted-primary | 1022 | joseph | restricted | primary | 192.168.1.22 | 192.168.5.22 | 192.168.11.22 |
+| dns-restricted-secondary | 1023 | maxwell | restricted | secondary | 192.168.1.23 | 192.168.5.23 | 192.168.11.23 |
 
 **DNS Naming Convention:**
 
@@ -41,7 +41,7 @@ make prod-dns          # Register DNS entries for Pi-holes
 
 | Hostname | VMID | Node | Trusted IP | Mgmt IP |
 |----------|------|------|------------|---------|
-| dns-test | 199 | joseph | 192.168.1.99 | 192.168.5.99 |
+| pihole-test | 1199 | joseph | 192.168.1.199 | 192.168.5.199 |
 
 **Network interfaces per LXC (functional naming):**
 
@@ -62,11 +62,11 @@ services/pihole/
 │   ├── variables.tf
 │   ├── outputs.tf
 │   └── envs/
-│       ├── test/               # Test instance (VMID 199)
+│       ├── test/               # Test instance (VMID 1199)
 │       │   ├── main.tf
 │       │   ├── backend.tf
 │       │   └── Makefile
-│       └── prod/               # Production (VMIDs 120-123)
+│       └── prod/               # Production (VMIDs 1020-1023)
 │           ├── main.tf
 │           ├── backend.tf
 │           └── Makefile
@@ -259,8 +259,8 @@ ls -la services/pihole/ansible/inventory/
 ### LXC won't start
 
 ```bash
-ssh root@joseph "pct start 120"
-ssh root@joseph "journalctl -u pve-container@120 -n 50"
+ssh root@joseph "pct start 1020"
+ssh root@joseph "journalctl -u pve-container@1020 -n 50"
 ```
 
 ### DNS not responding

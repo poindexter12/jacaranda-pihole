@@ -11,9 +11,6 @@ OP_VAULT = Homelab
 ENCRYPTION_PASSPHRASE = $$(op read 'op://$(OP_VAULT)/opentofu/password')
 TF_FLAGS = -var="encryption_passphrase=$(ENCRYPTION_PASSPHRASE)"
 
-# Terraform with Pi-hole password + encryption
-TF_PIHOLE = TF_VAR_pihole_password=$$(op read 'op://$(OP_VAULT)/pihole-prod/webpassword') $(TF)
-
 # ============================================================================
 # TARGETS
 # ============================================================================
@@ -24,17 +21,17 @@ init: ## Initialize OpenTofu
 	$(TF) init $(TF_FLAGS)
 
 plan: init ## Plan changes
-	@$(TF_PIHOLE) plan $(TF_FLAGS)
+	@$(TF) plan $(TF_FLAGS)
 
 apply: init ## Apply changes
-	@$(TF_PIHOLE) apply -auto-approve $(TF_FLAGS)
+	@$(TF) apply -auto-approve $(TF_FLAGS)
 
 destroy: ## Destroy all (DANGEROUS - prompts first)
 	@echo "WARNING: This will destroy ALL production Pi-hole instances!"
 	@echo "Press Ctrl+C to cancel, or Enter to continue..."
 	@read _
 	$(TF) init $(TF_FLAGS)
-	@$(TF_PIHOLE) destroy -auto-approve $(TF_FLAGS)
+	@$(TF) destroy -auto-approve $(TF_FLAGS)
 
 output: ## Show OpenTofu outputs
 	$(TF) output $(TF_FLAGS)
@@ -115,7 +112,7 @@ help: ## Show this help
 		}' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Instances:"
-	@echo "  dns-standard-primary    (120) - 192.168.1.20"
-	@echo "  dns-standard-secondary  (121) - 192.168.1.21"
-	@echo "  dns-restricted-primary  (122) - 192.168.1.22"
-	@echo "  dns-restricted-secondary(123) - 192.168.1.23"
+	@echo "  dns-standard-primary    (10020) - 192.168.1.20  [workaround for template conflict]"
+	@echo "  dns-standard-secondary  (1021)  - 192.168.1.21"
+	@echo "  dns-restricted-primary  (1022)  - 192.168.1.22"
+	@echo "  dns-restricted-secondary(1023)  - 192.168.1.23"

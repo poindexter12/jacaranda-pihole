@@ -2,6 +2,10 @@
 # Pi-hole Production Environment
 # ============================================================================
 # 4 LXC instances: 2 standard + 2 restricted, primary/secondary pairs.
+#
+# VMID Allocation: 4-digit TSSS pattern (1xxx = LXC, last 3 digits = IP octet)
+# - All instances migrated to 4-digit VMIDs: 1020-1023
+# Reference: .claude/skills/vmid-allocation.md
 
 terraform {
   required_version = ">= 1.0"
@@ -10,10 +14,6 @@ terraform {
     proxmox = {
       source  = "Telmate/proxmox"
       version = "= 3.0.2-rc04"
-    }
-    pihole = {
-      source  = "registry.terraform.io/poindexter12/pihole"
-      version = ">= 1.0.0"
     }
   }
 }
@@ -35,6 +35,79 @@ locals {
 }
 
 # ============================================================================
+# VMID Allocation Reference
+# ============================================================================
+# Import centralized VMID ranges for validation.
+
+module "vmid" {
+  source = "../../../../../infrastructure/terraform/modules/vmid-ranges"
+}
+
+# Validate all VMIDs are in LXC range (1001-1254)
+# Exception: 10020 used due to template conflict with 1020
+check "vmid_allocation" {
+  assert {
+    condition = alltrue([
+      for name, inst in local.pihole_instances :
+      contains(module.vmid.validate.lxc, inst.vmid) || inst.vmid == 10020
+    ])
+    error_message = "One or more VMIDs are outside the LXC allocation range (1001-1254). See .claude/skills/vmid-allocation.md"
+  }
+}
+
+locals {
+  # Define instances here for validation, then pass to module
+  pihole_instances = {
+    # Standard profile - general ad blocking
+    # VMID 10020 used due to conflict with template 1020 on everette
+    # TODO: Fix template numbering (1020→102) then change this to 1020
+    "dns-standard-primary" = {
+      vmid          = 10020 # Workaround: 10020 % 1000 = 20 → IP .20
+      node          = "joseph"
+      dns_ip        = "192.168.1.20"
+      mgmt_ip       = "192.168.5.20"
+      transfer_ip   = "192.168.11.20"
+      profile       = "standard"
+      role          = "primary"
+      startup_order = 1
+    }
+    "dns-standard-secondary" = {
+      vmid          = 1021 # 4-digit TSSS: 1000 + 21 → IP .21
+      node          = "maxwell"
+      dns_ip        = "192.168.1.21"
+      mgmt_ip       = "192.168.5.21"
+      transfer_ip   = "192.168.11.21"
+      profile       = "standard"
+      role          = "secondary"
+      startup_order = 2
+    }
+
+    # Restricted profile - stricter blocking (e.g., kids network)
+    # 4-digit TSSS: 1022 (primary), 1023 (secondary)
+    "dns-restricted-primary" = {
+      vmid          = 1022 # 4-digit TSSS: 1000 + 22 → IP .22
+      node          = "joseph"
+      dns_ip        = "192.168.1.22"
+      mgmt_ip       = "192.168.5.22"
+      transfer_ip   = "192.168.11.22"
+      profile       = "restricted"
+      role          = "primary"
+      startup_order = 3
+    }
+    "dns-restricted-secondary" = {
+      vmid          = 1023 # 4-digit TSSS: 1000 + 23 → IP .23
+      node          = "maxwell"
+      dns_ip        = "192.168.1.23"
+      mgmt_ip       = "192.168.5.23"
+      transfer_ip   = "192.168.11.23"
+      profile       = "restricted"
+      role          = "secondary"
+      startup_order = 4
+    }
+  }
+}
+
+# ============================================================================
 # Provider Configuration
 # ============================================================================
 
@@ -44,18 +117,6 @@ provider "proxmox" {
   pm_api_token_secret = local.base.proxmox_api_token_secret
   pm_tls_insecure     = local.base.proxmox_tls_insecure
   pm_timeout          = 600
-}
-
-# Pi-hole DNS provider (self-referential - Pi-hole manages its own DNS entries)
-variable "pihole_password" {
-  description = "Pi-hole admin password for DNS API"
-  type        = string
-  sensitive   = true
-}
-
-provider "pihole" {
-  url      = "http://192.168.5.20"
-  password = var.pihole_password
 }
 
 # ============================================================================
@@ -70,51 +131,8 @@ module "pihole" {
   ssh_public_key = local.base.ssh_public_key
   onboot         = true # Auto-start on Proxmox boot
 
-  instances = {
-    # Standard profile - general ad blocking
-    "dns-standard-primary" = {
-      vmid          = 120
-      node          = "joseph"
-      dns_ip        = "192.168.1.20"
-      mgmt_ip       = "192.168.5.20"
-      transfer_ip   = "192.168.11.20"
-      profile       = "standard"
-      role          = "primary"
-      startup_order = 1
-    }
-    "dns-standard-secondary" = {
-      vmid          = 121
-      node          = "maxwell"
-      dns_ip        = "192.168.1.21"
-      mgmt_ip       = "192.168.5.21"
-      transfer_ip   = "192.168.11.21"
-      profile       = "standard"
-      role          = "secondary"
-      startup_order = 2
-    }
-
-    # Restricted profile - stricter blocking (e.g., kids network)
-    "dns-restricted-primary" = {
-      vmid          = 122
-      node          = "joseph"
-      dns_ip        = "192.168.1.22"
-      mgmt_ip       = "192.168.5.22"
-      transfer_ip   = "192.168.11.22"
-      profile       = "restricted"
-      role          = "primary"
-      startup_order = 3
-    }
-    "dns-restricted-secondary" = {
-      vmid          = 123
-      node          = "maxwell"
-      dns_ip        = "192.168.1.23"
-      mgmt_ip       = "192.168.5.23"
-      transfer_ip   = "192.168.11.23"
-      profile       = "restricted"
-      role          = "secondary"
-      startup_order = 4
-    }
-  }
+  # Instances defined in locals for VMID validation
+  instances = local.pihole_instances
 }
 
 # ============================================================================
@@ -146,28 +164,7 @@ output "secondary_instances" {
   value       = module.pihole.secondary_instances
 }
 
-# ============================================================================
-# DNS Records (Pi-hole)
-# ============================================================================
-# Self-referential: Pi-hole instances register themselves in Pi-hole DNS
-
-resource "pihole_dns_record" "pihole_trusted" {
-  for_each = module.pihole.dns_ips
-
-  domain = "${each.key}.trusted"
-  ip     = each.value
-}
-
-resource "pihole_dns_record" "pihole_mgmt" {
-  for_each = module.pihole.mgmt_ips
-
-  domain = "${each.key}.mgmt"
-  ip     = each.value
-}
-
-resource "pihole_dns_record" "pihole_storage" {
-  for_each = module.pihole.transfer_ips
-
-  domain = "${each.key}.storage"
-  ip     = each.value
+output "transfer_ips" {
+  description = "Transfer/storage network IPs"
+  value       = module.pihole.transfer_ips
 }

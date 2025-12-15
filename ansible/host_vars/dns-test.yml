@@ -1,14 +1,14 @@
 ---
 # dns-test: Test instance for validation
-# Proxmox Node: joseph | LXC ID: 199
+# Proxmox Node: joseph | LXC ID: 1199
 
 profile: standard
 role: primary
 
 # Network IPs (functional naming: trusted, mgmt, storage)
-trusted_ip: "192.168.1.99"
-mgmt_ip: "192.168.5.99"
-storage_ip: "192.168.11.99"
+trusted_ip: "192.168.1.199"
+mgmt_ip: "192.168.5.199"
+storage_ip: "192.168.11.199"
 
 # Legacy aliases (for backward compatibility)
 dns_ip: "{{ trusted_ip }}"

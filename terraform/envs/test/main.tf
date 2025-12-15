@@ -2,6 +2,7 @@
 # Pi-hole Test Environment
 # ============================================================================
 # Single test instance for validating changes before production.
+# DNS records are managed separately in infrastructure/dns/
 
 terraform {
   required_version = ">= 1.0"
@@ -56,11 +57,11 @@ module "pihole" {
 
   instances = {
     "dns-test" = {
-      vmid          = 199
+      vmid          = 1199 # 4-digit TSSS: 1000 + 199 → IP .199
       node          = "joseph"
-      dns_ip        = "192.168.1.99"
-      mgmt_ip       = "192.168.5.99"
-      transfer_ip   = "192.168.11.99"
+      dns_ip        = "192.168.1.199"
+      mgmt_ip       = "192.168.5.199"
+      transfer_ip   = "192.168.11.199"
       profile       = "standard"
       role          = "primary"
       startup_order = null
@@ -85,4 +86,9 @@ output "mgmt_ips" {
 output "dns_ips" {
   description = "DNS IPs for client queries"
   value       = module.pihole.dns_ips
+}
+
+output "transfer_ips" {
+  description = "Transfer/storage network IPs"
+  value       = module.pihole.transfer_ips
 }

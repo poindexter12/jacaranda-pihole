@@ -1,6 +1,6 @@
 ---
 # dns-restricted-primary: Restricted blocklist, Primary instance
-# Proxmox Node: joseph | LXC ID: 122
+# Proxmox Node: joseph | LXC ID: 1022 (4-digit TSSS)
 
 profile: restricted
 role: primary

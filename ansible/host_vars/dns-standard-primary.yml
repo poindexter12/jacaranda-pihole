@@ -1,6 +1,6 @@
 ---
 # dns-standard-primary: Standard blocklist, Primary instance
-# Proxmox Node: joseph | LXC ID: 120
+# Proxmox Node: joseph | LXC ID: 10020 (workaround for template 1020 conflict)
 
 profile: standard
 role: primary

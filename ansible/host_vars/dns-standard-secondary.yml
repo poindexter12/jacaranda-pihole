@@ -1,6 +1,6 @@
 ---
 # dns-standard-secondary: Standard blocklist, Secondary instance
-# Proxmox Node: maxwell | LXC ID: 121
+# Proxmox Node: maxwell | LXC ID: 1021 (4-digit TSSS)
 
 profile: standard
 role: secondary

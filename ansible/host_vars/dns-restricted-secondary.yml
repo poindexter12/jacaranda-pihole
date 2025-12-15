@@ -1,6 +1,6 @@
 ---
 # dns-restricted-secondary: Restricted blocklist, Secondary instance
-# Proxmox Node: maxwell | LXC ID: 123
+# Proxmox Node: maxwell | LXC ID: 1023 (4-digit TSSS)
 
 profile: restricted
 role: secondary
