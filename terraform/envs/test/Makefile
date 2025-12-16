@@ -1,14 +1,17 @@
 # Pi-hole Test Environment
 #
 # Single test instance for validating changes before production.
+# Secrets: Uses 1Password Connect Server via secrets.mk
 
 .DEFAULT_GOAL := help
 
 TF = ~/.asdf/shims/tofu
+REPO_ROOT = $(shell git rev-parse --show-toplevel)
 
-# Secrets from 1Password
-OP_VAULT = Homelab
-ENCRYPTION_PASSPHRASE = $$(op read 'op://$(OP_VAULT)/opentofu/password')
+# Include secrets.mk for Connect Server integration
+include $(REPO_ROOT)/secrets.mk
+
+# ENCRYPTION_PASSPHRASE provided by secrets.mk
 TF_FLAGS = -var="encryption_passphrase=$(ENCRYPTION_PASSPHRASE)"
 
 # ============================================================================

@@ -1,12 +1,17 @@
 # Pi-hole Ansible
 #
 # Deploys Pi-hole, cloudflared, and nebula-sync to LXC containers.
-# Secrets loaded from 1Password via `op read`.
+# Secrets: Uses 1Password Connect Server via secrets.mk
 # Verbose logs written to logs/ directory.
 #
 # Self-documenting: run `make help` to see all targets
 
 .DEFAULT_GOAL := help
+
+REPO_ROOT = $(shell git rev-parse --show-toplevel)
+
+# Include secrets.mk for Connect Server integration
+include $(REPO_ROOT)/secrets.mk
 
 # ============================================================================
 # CONFIGURATION
@@ -52,7 +57,7 @@ test-ssh-ca: test-sign-certs ## Configure SSH CA on test (sign + configure)
 
 test-pihole: ## Install Pi-hole on test
 	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-lxc.yml \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-test/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-test/webpassword')"
 
 test-cloudflared: ## Install cloudflared on test
 	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-cloudflared.yml
@@ -76,14 +81,14 @@ prod-ssh-ca: prod-sign-certs ## Configure SSH CA on prod (sign + configure)
 
 prod-pihole: ## Install Pi-hole on prod
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-cloudflared: ## Install cloudflared on prod
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml
 
 prod-nebula-sync: ## Install nebula-sync on prod secondaries
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/nebula-sync.yml \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-dns: ## Register DNS entries for prod instances
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-dns-self.yml
@@ -93,15 +98,15 @@ prod-dns: ## Register DNS entries for prod instances
 prod-deploy-green: fetch prod-ssh-ca-green ## Deploy to secondaries first (green)
 	@echo "=== Deploying to secondaries (green) ==="
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_secondary \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_secondary
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/nebula-sync.yml --limit pihole_secondary \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-deploy-blue: fetch prod-ssh-ca-blue ## Deploy to primaries after verification (blue)
 	@echo "=== Deploying to primaries (blue) ==="
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_primary \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_primary
 
 prod-ssh-ca-green: ## Sign and configure SSH CA for secondaries
@@ -120,14 +125,14 @@ prod-upgrade-blue: ## Upgrade primaries (blue) - step 1
 	@echo "=== Blue-Green Upgrade ==="
 	@echo "Step 1: Upgrade primaries (blue)"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --limit pihole_primary \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@echo ""
 	@echo "Verify primaries are working, then run: make prod-upgrade-green"
 
 prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 	@echo "Step 2: Upgrade secondaries (green)"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --limit pihole_secondary \
-		-e "pihole_password=$$(op read 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
+		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-upgrade-check: ## Check versions without changes
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --tags check
@@ -137,9 +142,9 @@ prod-upgrade-check: ## Check versions without changes
 check-secrets: ## Verify 1Password items exist
 	@echo "Checking 1Password items..."
 	@echo "Test: op://$(OP_VAULT)/$(SERVICE)-test/webpassword"
-	@op read "op://$(OP_VAULT)/$(SERVICE)-test/webpassword" > /dev/null && echo "  ✓ $(SERVICE)-test exists" || echo "  ✗ $(SERVICE)-test missing"
+	@$(OP_READ) "op://$(OP_VAULT)/$(SERVICE)-test/webpassword" > /dev/null && echo "  ✓ $(SERVICE)-test exists" || echo "  ✗ $(SERVICE)-test missing"
 	@echo "Prod: op://$(OP_VAULT)/$(SERVICE)-prod/webpassword"
-	@op read "op://$(OP_VAULT)/$(SERVICE)-prod/webpassword" > /dev/null && echo "  ✓ $(SERVICE)-prod exists" || echo "  ✗ $(SERVICE)-prod missing"
+	@$(OP_READ) "op://$(OP_VAULT)/$(SERVICE)-prod/webpassword" > /dev/null && echo "  ✓ $(SERVICE)-prod exists" || echo "  ✗ $(SERVICE)-prod missing"
 
 ##@ Logs
 
