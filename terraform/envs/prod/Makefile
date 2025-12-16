@@ -1,14 +1,17 @@
 # Pi-hole Production Environment
 #
 # 4 LXC instances with blue-green upgrade support.
+# Secrets: Uses 1Password Connect Server via secrets.mk
 
 .DEFAULT_GOAL := help
 
 TF = ~/.asdf/shims/tofu
-OP_VAULT = Homelab
+REPO_ROOT = $(shell git rev-parse --show-toplevel)
 
-# Encryption passphrase from 1Password
-ENCRYPTION_PASSPHRASE = $$(op read 'op://$(OP_VAULT)/opentofu/password')
+# Include secrets.mk for Connect Server integration
+include $(REPO_ROOT)/secrets.mk
+
+# ENCRYPTION_PASSPHRASE provided by secrets.mk
 TF_FLAGS = -var="encryption_passphrase=$(ENCRYPTION_PASSPHRASE)"
 
 # ============================================================================
