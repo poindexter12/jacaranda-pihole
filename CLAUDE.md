@@ -21,8 +21,8 @@ make prod-dns          # Register DNS entries for Pi-holes
 
 **4 Production LXCs, 2 profiles, HA pairs:**
 
-| Hostname | VMID | Node | Profile | Role | Trusted IP | Mgmt IP | Storage IP |
-|----------|------|------|---------|------|------------|---------|------------|
+| Hostname | VMID | Node | Profile | Role | Trusted IP | Mgmt IP | Transfer IP |
+|----------|------|------|---------|------|------------|---------|-------------|
 | dns-standard-primary | 1020 | joseph | standard | primary | 192.168.1.20 | 192.168.5.20 | 192.168.11.20 |
 | dns-standard-secondary | 1021 | maxwell | standard | secondary | 192.168.1.21 | 192.168.5.21 | 192.168.11.21 |
 | dns-restricted-primary | 1022 | joseph | restricted | primary | 192.168.1.22 | 192.168.5.22 | 192.168.11.22 |
@@ -34,7 +34,7 @@ make prod-dns          # Register DNS entries for Pi-holes
 |---------|-------------|---------|
 | `{hostname}.trusted` | Trusted network (192.168.1.x) | `dns-standard-primary.trusted` → 192.168.1.20 |
 | `{hostname}.mgmt` | Management network (192.168.5.x) | `dns-standard-primary.mgmt` → 192.168.5.20 |
-| `{hostname}.storage` | Storage network (192.168.11.x) | `dns-standard-primary.storage` → 192.168.11.20 |
+| `{hostname}.transfer` | Transfer network (192.168.11.x) | `dns-standard-primary.transfer` → 192.168.11.20 |
 | `{hostname}` | CNAME → .trusted | `dns-standard-primary` → 192.168.1.20 |
 
 **Test Instance:**
@@ -49,7 +49,7 @@ make prod-dns          # Register DNS entries for Pi-holes
 |-----------|------|---------|
 | eth0 | trusted (192.168.1.x) | DNS queries from clients |
 | eth1 | mgmt (192.168.5.x) | SSH, Web UI |
-| eth2 | storage (192.168.11.x) | nebula-sync replication |
+| eth2 | transfer (192.168.11.x) | nebula-sync replication |
 
 ## Directory Structure
 

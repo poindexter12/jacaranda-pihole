@@ -72,10 +72,10 @@ resource "proxmox_lxc" "pihole" {
     # No gateway - default route via trusted network
   }
 
-  # Network: eth2 - Storage/Transfer VLAN (nebula-sync replication)
+  # Network: eth2 - Transfer VLAN (nebula-sync replication)
   network {
     name   = "eth2"
-    bridge = var.vlans["storage"].bridge
+    bridge = var.vlans["transfer"].bridge
     ip     = "${each.value.transfer_ip}/24"
     # No gateway - used only for inter-pihole sync traffic
   }

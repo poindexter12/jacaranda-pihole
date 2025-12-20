@@ -4,7 +4,7 @@
 # Adds DNS entries for ALL interfaces on each Pi-hole instance:
 #   - {hostname}.trusted  → trusted network IP (192.168.1.x)
 #   - {hostname}.mgmt     → management network IP (192.168.5.x)
-#   - {hostname}.storage  → storage network IP (192.168.11.x)
+#   - {hostname}.transfer → transfer network IP (192.168.11.x)
 #
 # Plus CNAME for naked hostname → .trusted (so dns-standard-primary resolves to trusted IP)
 #
@@ -31,8 +31,8 @@
             ip: "{{ h.trusted_ip | default(h.dns_ip) }}"
           - hostname: "{{ host }}.mgmt"
             ip: "{{ h.mgmt_ip }}"
-          - hostname: "{{ host }}.storage"
-            ip: "{{ h.storage_ip | default(h.transfer_ip) }}"
+          - hostname: "{{ host }}.transfer"
+            ip: "{{ h.transfer_ip | default(h.storage_ip) }}"
           {% endfor %}
 
     - name: Build CNAME records (naked → trusted)
@@ -132,5 +132,5 @@
           Usage:
             dig dns-standard-primary.trusted  → 192.168.1.20
             dig dns-standard-primary.mgmt     → 192.168.5.20
-            dig dns-standard-primary.storage  → 192.168.11.20
+            dig dns-standard-primary.transfer → 192.168.11.20
             dig dns-standard-primary          → CNAME → dns-standard-primary.trusted → 192.168.1.20
