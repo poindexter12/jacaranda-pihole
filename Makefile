@@ -90,13 +90,13 @@ prod-deploy-blue: ## Deploy to primaries after verification (blue)
 
 prod-destroy-green: ## Destroy secondaries only
 	@echo "=== Destroying secondaries (green) ==="
-	cd terraform/envs/prod && terraform destroy -compact-warnings \
+	cd terraform/envs/prod && ~/.asdf/shims/tofu destroy -compact-warnings \
 		-target='module.pihole.proxmox_lxc.pihole["dns-standard-secondary"]' \
 		-target='module.pihole.proxmox_lxc.pihole["dns-restricted-secondary"]'
 
 prod-destroy-blue: ## Destroy primaries only
 	@echo "=== Destroying primaries (blue) ==="
-	cd terraform/envs/prod && terraform destroy -compact-warnings \
+	cd terraform/envs/prod && ~/.asdf/shims/tofu destroy -compact-warnings \
 		-target='module.pihole.proxmox_lxc.pihole["dns-standard-primary"]' \
 		-target='module.pihole.proxmox_lxc.pihole["dns-restricted-primary"]'
 
