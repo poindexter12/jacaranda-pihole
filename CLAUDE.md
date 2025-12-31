@@ -228,9 +228,9 @@ dig @dns-standard-primary.trusted doubleclick.net  # Should return 0.0.0.0
 ### SSH to Instance
 
 ```bash
-ssh -i ~/.ssh/jacaranda root@dns-standard-primary.mgmt
+ssh root@dns-standard-primary.mgmt
 # Or short form (CNAME → trusted network, but SSH via mgmt)
-ssh -i ~/.ssh/jacaranda root@192.168.5.20
+ssh root@192.168.5.20
 ```
 
 ### Check Pi-hole Status

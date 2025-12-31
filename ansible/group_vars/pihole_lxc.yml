@@ -4,7 +4,6 @@
 
 # SSH configuration for LXC containers
 ansible_user: root
-ansible_ssh_private_key_file: ~/.ssh/jacaranda
 
 # Pi-hole installation
 pihole_install_url: "https://install.pi-hole.net"

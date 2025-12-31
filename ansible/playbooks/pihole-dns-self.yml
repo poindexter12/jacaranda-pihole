@@ -19,7 +19,6 @@
     # Primary DNS server for record management
     dns_admin_host: "{{ groups['pihole_primary'] | first | default('dns-standard-primary') }}"
     dns_admin_ip: "{{ hostvars[dns_admin_host]['mgmt_ip'] }}"
-    dns_ssh_key: ~/.ssh/jacaranda
 
   tasks:
     - name: Build DNS A records for all interfaces
@@ -69,8 +68,6 @@
       delegate_to: "{{ dns_admin_ip }}"
       vars:
         ansible_user: root
-        ansible_ssh_private_key_file: "{{ dns_ssh_key }}"
-        ansible_ssh_common_args: "-o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
       shell: pihole-FTL --config dns.hosts
       register: current_dns_hosts
       changed_when: false
@@ -88,8 +85,6 @@
       delegate_to: "{{ dns_admin_ip }}"
       vars:
         ansible_user: root
-        ansible_ssh_private_key_file: "{{ dns_ssh_key }}"
-        ansible_ssh_common_args: "-o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
       shell: "pihole-FTL --config dns.hosts '{{ merged_hosts | to_json }}'"
       when: dns_update_needed
       register: dns_a_result
@@ -98,8 +93,6 @@
       delegate_to: "{{ dns_admin_ip }}"
       vars:
         ansible_user: root
-        ansible_ssh_private_key_file: "{{ dns_ssh_key }}"
-        ansible_ssh_common_args: "-o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
       copy:
         dest: /etc/dnsmasq.d/05-pihole-self-cnames.conf
         content: |
@@ -117,8 +110,6 @@
       delegate_to: "{{ dns_admin_ip }}"
       vars:
         ansible_user: root
-        ansible_ssh_private_key_file: "{{ dns_ssh_key }}"
-        ansible_ssh_common_args: "-o IdentitiesOnly=yes -o StrictHostKeyChecking=no"
       command: systemctl reload pihole-FTL
       when: cname_result.changed
 
