@@ -148,3 +148,17 @@ output "ansible_inventory_path" {
   description = "Path to generated Ansible inventory file"
   value       = local_file.ansible_inventory.filename
 }
+
+# ============================================================================
+# DNS CNAME Entries (.lan layer for macOS resolver compatibility)
+# ============================================================================
+
+output "cname_entries" {
+  description = "CNAME entries for .lan layer and bare names"
+  value = merge(
+    # .lan → .trusted (DNS queries via trusted network)
+    { for name, config in var.instances : "${name}.lan" => "${name}.trusted" },
+    # bare → .lan (convenience)
+    { for name, config in var.instances : name => "${name}.lan" }
+  )
+}

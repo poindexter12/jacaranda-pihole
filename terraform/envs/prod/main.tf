@@ -168,3 +168,8 @@ output "transfer_ips" {
   description = "Transfer/storage network IPs"
   value       = module.pihole.transfer_ips
 }
+
+output "cname_entries" {
+  description = "CNAME entries for .lan layer and bare names"
+  value       = module.pihole.cname_entries
+}
