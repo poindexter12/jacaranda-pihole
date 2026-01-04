@@ -7,7 +7,7 @@ locals {
   # Uses functional naming (trusted, mgmt, storage) with legacy aliases for compatibility
   all_hosts = {
     for name, inst in var.instances : name => {
-      ansible_host = inst.mgmt_ip
+      ansible_host = "${name}.lan" # Use .lan hostname for SSH cert auth
       mgmt_ip      = inst.mgmt_ip
       vmid         = inst.vmid
       proxmox_node = inst.node

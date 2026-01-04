@@ -137,6 +137,34 @@ prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 prod-upgrade-check: ## Check versions without changes
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --tags check
 
+##@ Bootstrap (first-time deployment before cert auth works)
+
+# Bootstrap uses:
+#   - inventory/prod-bootstrap.yaml (IPs instead of hostnames)
+#   - jacaranda key (authorized_keys instead of certs)
+BOOTSTRAP_KEY = ~/.ssh/jacaranda
+BOOTSTRAP_INVENTORY = inventory/prod-bootstrap.yaml
+
+prod-bootstrap: ## Bootstrap User CA on prod (uses jacaranda key + IPs)
+	@echo "=== Bootstrapping User CA on prod Pi-holes ==="
+	@echo "Using jacaranda bootstrap key with IP addresses..."
+	ANSIBLE_HOST_KEY_CHECKING=False $(ANSIBLE_PLAYBOOK) -i $(BOOTSTRAP_INVENTORY) playbooks/ssh-ca.yaml \
+		--private-key $(BOOTSTRAP_KEY)
+	@echo ""
+	@echo "✓ User CA deployed. Normal cert-based SSH should now work."
+
+prod-bootstrap-green: ## Bootstrap User CA on secondaries only
+	@echo "=== Bootstrapping User CA on secondaries (green) ==="
+	ANSIBLE_HOST_KEY_CHECKING=False $(ANSIBLE_PLAYBOOK) -i $(BOOTSTRAP_INVENTORY) playbooks/ssh-ca.yaml \
+		--private-key $(BOOTSTRAP_KEY) \
+		--limit pihole_secondary
+
+prod-bootstrap-blue: ## Bootstrap User CA on primaries only
+	@echo "=== Bootstrapping User CA on primaries (blue) ==="
+	ANSIBLE_HOST_KEY_CHECKING=False $(ANSIBLE_PLAYBOOK) -i $(BOOTSTRAP_INVENTORY) playbooks/ssh-ca.yaml \
+		--private-key $(BOOTSTRAP_KEY) \
+		--limit pihole_primary
+
 ##@ Secrets
 
 check-secrets: ## Verify 1Password items exist

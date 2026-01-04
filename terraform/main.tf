@@ -89,10 +89,12 @@ resource "proxmox_lxc" "pihole" {
 
   # Tags for organization
   tags = join(",", compact([
-    each.value.profile,
-    each.value.role,
     "pihole",
-    var.env
+    var.env,
+    "ha",
+    "replicated", # DNS-based HA via multiple server entries in DHCP
+    each.value.role,
+    each.value.profile,
   ]))
 
   lifecycle {
@@ -106,6 +108,7 @@ resource "proxmox_lxc" "pihole" {
       features,
       network,
       start,
+      cmode, # Provider tries to add default, Proxmox rejects on existing containers
     ]
   }
 }

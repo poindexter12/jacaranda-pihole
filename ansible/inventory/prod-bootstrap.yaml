@@ -1,0 +1,33 @@
+---
+# Bootstrap inventory for Pi-hole prod
+# Uses IP addresses instead of hostnames for initial User CA deployment
+# when SSH certificate authentication isn't yet configured.
+#
+# Usage: make prod-bootstrap (from ansible/ directory)
+
+all:
+  children:
+    pihole_lxc:
+      children:
+        pihole_primary:
+          hosts:
+            dns-standard-primary:
+              ansible_host: "192.168.5.20"
+            dns-restricted-primary:
+              ansible_host: "192.168.5.22"
+        pihole_secondary:
+          hosts:
+            dns-standard-secondary:
+              ansible_host: "192.168.5.21"
+            dns-restricted-secondary:
+              ansible_host: "192.168.5.23"
+        pihole_standard:
+          hosts:
+            dns-standard-primary: {}
+            dns-standard-secondary: {}
+        pihole_restricted:
+          hosts:
+            dns-restricted-primary: {}
+            dns-restricted-secondary: {}
+  vars:
+    ansible_user: root

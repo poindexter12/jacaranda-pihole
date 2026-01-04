@@ -245,6 +245,17 @@
           - Status: OK
       tags: [verify]
 
+    # =========================================================================
+    # SSH USER CA CONFIGURATION
+    # =========================================================================
+    - name: Include SSH CA role for certificate authentication
+      ansible.builtin.include_role:
+        name: ../../../../ansible/roles/ssh-ca
+      vars:
+        ssh_ca_user_pubkey: "{{ lookup('pipe', 'op read op://SSH-CA/ssh-ca-user/public_key') }}"
+        ssh_ca_clear_authorized_keys: false
+      tags: [ssh-ca]
+
   handlers:
     - name: Restart pihole-FTL
       ansible.builtin.systemd:

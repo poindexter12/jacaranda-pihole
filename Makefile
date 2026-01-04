@@ -108,6 +108,17 @@ prod-upgrade-blue: ## Upgrade primaries (blue) - step 1
 prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 	@$(MAKE) -C ansible prod-upgrade-green
 
+##@ Bootstrap (first-time User CA deployment)
+
+prod-bootstrap: ## Bootstrap User CA on prod (uses jacaranda key + IPs)
+	@$(MAKE) -C ansible prod-bootstrap
+
+prod-bootstrap-green: ## Bootstrap User CA on secondaries only
+	@$(MAKE) -C ansible prod-bootstrap-green
+
+prod-bootstrap-blue: ## Bootstrap User CA on primaries only
+	@$(MAKE) -C ansible prod-bootstrap-blue
+
 ##@ Secrets
 
 check-secrets: ## Verify 1Password items exist
