@@ -38,6 +38,9 @@ resource "proxmox_lxc" "pihole" {
   onboot       = var.onboot
   start        = true
 
+  # Proxmox HA - enables container migration on node failure
+  hastate = var.env == "prod" ? "started" : null
+
   # Startup order (if specified)
   startup = each.value.startup_order != null ? "order=${each.value.startup_order}" : null
 

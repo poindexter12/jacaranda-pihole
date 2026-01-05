@@ -44,12 +44,11 @@ module "vmid" {
 }
 
 # Validate all VMIDs are in LXC range (1001-1254)
-# Exception: 10020 used due to template conflict with 1020
 check "vmid_allocation" {
   assert {
     condition = alltrue([
       for name, inst in local.pihole_instances :
-      contains(module.vmid.validate.lxc, inst.vmid) || inst.vmid == 10020
+      contains(module.vmid.validate.lxc, inst.vmid)
     ])
     error_message = "One or more VMIDs are outside the LXC allocation range (1001-1254). See .claude/skills/vmid-allocation.md"
   }
@@ -59,10 +58,8 @@ locals {
   # Define instances here for validation, then pass to module
   pihole_instances = {
     # Standard profile - general ad blocking
-    # VMID 10020 used due to conflict with template 1020 on everette
-    # TODO: Fix template numbering (1020→102) then change this to 1020
     "dns-standard-primary" = {
-      vmid          = 10020 # Workaround: 10020 % 1000 = 20 → IP .20
+      vmid          = 1020 # 4-digit TSSS: 1000 + 20 → IP .20
       node          = "joseph"
       dns_ip        = "192.168.1.20"
       mgmt_ip       = "192.168.5.20"

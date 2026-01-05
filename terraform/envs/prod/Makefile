@@ -45,6 +45,20 @@ validate: init ## Validate configuration
 clean: ## Remove .terraform directory
 	rm -rf .terraform .terraform.lock.hcl
 
+##@ State Management
+
+state-list: init ## List resources in state
+	@$(TF) state list $(TF_FLAGS)
+
+state-show: init ## Show specific resource (RESOURCE=module.pihole.proxmox_lxc.pihole["name"])
+	@$(TF) state show $(TF_FLAGS) '$(RESOURCE)'
+
+state-rm: init ## Remove resource from state (RESOURCE=...)
+	@$(TF) state rm $(TF_FLAGS) '$(RESOURCE)'
+
+state-import: init ## Import existing resource (RESOURCE=... ID=node/lxc/vmid)
+	@$(TF) import $(TF_FLAGS) '$(RESOURCE)' '$(ID)'
+
 ##@ Testing
 
 test-dns: ## Test DNS on all 4 instances
@@ -115,7 +129,7 @@ help: ## Show this help
 		}' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Instances:"
-	@echo "  dns-standard-primary    (10020) - 192.168.1.20  [workaround for template conflict]"
-	@echo "  dns-standard-secondary  (1021)  - 192.168.1.21"
-	@echo "  dns-restricted-primary  (1022)  - 192.168.1.22"
-	@echo "  dns-restricted-secondary(1023)  - 192.168.1.23"
+	@echo "  dns-standard-primary    (1020) - 192.168.1.20"
+	@echo "  dns-standard-secondary  (1021) - 192.168.1.21"
+	@echo "  dns-restricted-primary  (1022) - 192.168.1.22"
+	@echo "  dns-restricted-secondary(1023) - 192.168.1.23"
