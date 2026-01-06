@@ -115,3 +115,65 @@ resource "proxmox_lxc" "pihole" {
     ]
   }
 }
+
+# ============================================================================
+# Sign Host Certificates
+# ============================================================================
+# Signs host cert after LXC creation. Uses pct exec via Proxmox node instead
+# of SSH - no SSH to the LXC required during signing.
+# Future: Issue #83 tracks moving to ACME-SSH for non-SSH-based signing.
+
+resource "null_resource" "sign_host_cert" {
+  for_each   = var.instances
+  depends_on = [proxmox_lxc.pihole]
+
+  triggers = {
+    lxc_id = proxmox_lxc.pihole[each.key].id
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      NODE="${each.value.node}"
+      CTID="${each.value.vmid}"
+
+      echo "=== Waiting for ${each.key} to be ready ==="
+      for i in $(seq 1 30); do
+        if ssh root@$NODE.lan "pct exec $CTID -- echo ready" 2>/dev/null; then
+          break
+        fi
+        echo "  Attempt $i/30 - waiting..."
+        sleep 5
+      done
+
+      echo "=== Fetching host public key from ${each.key} ==="
+      HOST_PUBKEY=$(ssh root@$NODE.lan "pct exec $CTID -- cat /etc/ssh/ssh_host_ed25519_key.pub")
+
+      echo "=== Signing certificate on step-ca ==="
+      HOST_IPS=$(ssh root@$NODE.lan "pct exec $CTID -- hostname -I | tr ' ' ','")
+
+      PRINCIPALS="${each.key},${each.key}.lan,${each.key}.mgmt,${each.key}.trusted,${each.key}.transfer,$${HOST_IPS%,}"
+
+      echo "$HOST_PUBKEY" | ssh root@step-ca.lan "cat > /tmp/${each.key}.pub"
+
+      ssh root@step-ca.lan "
+        set -e
+        export OP_SERVICE_ACCOUNT_TOKEN=\$(cat /var/lib/step-ca/secrets/.op_token)
+        KEY_FILE=/var/lib/step-ca/secrets/.ephemeral_ca_key.${each.key}
+        op read 'op://SSH-CA/ssh-ca-host-virtual/private_key' > \$KEY_FILE
+        chmod 600 \$KEY_FILE
+        ssh-keygen -s \$KEY_FILE -I ${each.key} -h -n $PRINCIPALS -V +52w /tmp/${each.key}.pub
+        rm -f \$KEY_FILE
+      "
+
+      SIGNED_CERT=$(ssh root@step-ca.lan "cat /tmp/${each.key}-cert.pub")
+      ssh root@step-ca.lan "rm -f /tmp/${each.key}.pub /tmp/${each.key}-cert.pub"
+
+      echo "=== Installing certificate on ${each.key} ==="
+      echo "$SIGNED_CERT" | ssh root@$NODE.lan "pct exec $CTID -- tee /etc/ssh/ssh_host_ed25519_key-cert.pub > /dev/null"
+      ssh root@$NODE.lan "pct exec $CTID -- systemctl reload ssh || pct exec $CTID -- systemctl reload sshd || true"
+
+      echo "=== ${each.key} host certificate signed and installed ==="
+    EOT
+  }
+}
