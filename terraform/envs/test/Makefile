@@ -5,7 +5,7 @@
 
 .DEFAULT_GOAL := help
 
-TF = ~/.asdf/shims/tofu
+TF = tofu
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
 
 # Include secrets.mk for Connect Server integration
