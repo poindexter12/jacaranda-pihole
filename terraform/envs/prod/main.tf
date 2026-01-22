@@ -130,6 +130,16 @@ module "pihole" {
 
   # Instances defined in locals for VMID validation
   instances = local.pihole_instances
+
+  # Proxmox HA (PVE 9+ affinity rules)
+  ha_enabled = true
+
+  # Anti-affinity: keep primary+secondary pairs on separate nodes
+  # This ensures failover doesn't put both DNS servers in a pair on the same node
+  ha_anti_affinity_groups = [
+    ["dns-standard-primary", "dns-standard-secondary"],
+    ["dns-restricted-primary", "dns-restricted-secondary"],
+  ]
 }
 
 # ============================================================================

@@ -12,8 +12,8 @@ terraform {
 
   required_providers {
     proxmox = {
-      source  = "Telmate/proxmox"
-      version = "= 3.0.2-rc04" # Consistent with other services
+      source = "Telmate/proxmox"
+      # Version controlled by root module lockfile
     }
   }
 }
@@ -176,4 +176,95 @@ resource "null_resource" "sign_host_cert" {
       echo "=== ${each.key} host certificate signed and installed ==="
     EOT
   }
+}
+
+# ============================================================================
+# Proxmox HA Management (PVE 9+ Affinity Rules)
+# ============================================================================
+# Adds LXCs to Proxmox HA and creates anti-affinity rules to keep
+# HA pairs on separate nodes during failover.
+#
+# PVE 9 replaced HA groups with affinity rules:
+# - Node affinity: which nodes can host a resource (optional)
+# - Resource affinity: keep resources together (positive) or apart (negative)
+
+resource "null_resource" "ha_add" {
+  for_each = var.ha_enabled ? var.instances : {}
+
+  triggers = {
+    lxc_id = proxmox_lxc.pihole[each.key].id
+    node   = each.value.node
+    vmid   = each.value.vmid
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      echo "=== Adding ct:${each.value.vmid} to Proxmox HA ==="
+      ssh root@${each.value.node}.lan "ha-manager add ct:${each.value.vmid} --state started 2>/dev/null || true"
+    EOT
+  }
+
+  # Remove from HA before destroy
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      ssh root@${self.triggers.node}.lan "ha-manager remove ct:${self.triggers.vmid} 2>/dev/null || true"
+    EOT
+  }
+
+  depends_on = [null_resource.sign_host_cert]
+}
+
+# Create anti-affinity rules to keep HA pairs on separate nodes
+# Each group in ha_anti_affinity_groups creates a separate rule
+locals {
+  # Convert anti-affinity groups to a map for for_each
+  # Key: index, Value: {name: rule-name, resources: "ct:XXX,ct:YYY"}
+  anti_affinity_rules = {
+    for idx, group in var.ha_anti_affinity_groups : idx => {
+      name = "pihole-${idx}-anti-affinity"
+      resources = join(",", [
+        for instance_name in group : "ct:${var.instances[instance_name].vmid}"
+      ])
+    }
+  }
+}
+
+resource "null_resource" "ha_anti_affinity" {
+  for_each = var.ha_enabled && length(var.ha_anti_affinity_groups) > 0 ? local.anti_affinity_rules : {}
+
+  triggers = {
+    rule_name = each.value.name
+    resources = each.value.resources
+    # Use first instance's node for SSH (rules are cluster-wide)
+    node = var.instances[var.ha_anti_affinity_groups[each.key][0]].node
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -e
+      echo "=== Creating anti-affinity rule: ${each.value.name} ==="
+      echo "    Resources: ${each.value.resources}"
+
+      # Check if rule exists, create or update
+      if ssh root@${self.triggers.node}.lan "ha-manager rules status resource-affinity ${each.value.name}" >/dev/null 2>&1; then
+        echo "    Rule exists, updating..."
+        ssh root@${self.triggers.node}.lan "ha-manager rules set resource-affinity ${each.value.name} --resources ${each.value.resources}"
+      else
+        echo "    Creating new rule..."
+        ssh root@${self.triggers.node}.lan "ha-manager rules add resource-affinity ${each.value.name} --affinity negative --resources ${each.value.resources}"
+      fi
+    EOT
+  }
+
+  # Remove rule before destroy
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      ssh root@${self.triggers.node}.lan "ha-manager rules remove resource-affinity ${self.triggers.rule_name} 2>/dev/null || true"
+    EOT
+  }
+
+  depends_on = [null_resource.ha_add]
 }

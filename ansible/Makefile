@@ -4,6 +4,16 @@
 # Secrets: Uses 1Password Connect Server via secrets.mk
 # Verbose logs written to logs/ directory.
 #
+# SSH CA: Handled by Terraform's LXC module via `pct exec` (no Ansible needed).
+#         Host certs signed + User CA deployed before Ansible runs.
+#
+# NOTE: Bootstrap targets were removed because Terraform now handles SSH CA.
+#       If first-time deployment fails due to DNS chicken-and-egg (verify_ssh
+#       needs .lan hostnames but pihole serves DNS), workaround options:
+#         1. Deploy pihole via Ansible using IPs, then re-run `tofu apply`
+#         2. Add bootstrap targets back (see git history: chore: remove redundant SSH CA)
+#       The pct exec steps don't need DNS - only verify_ssh does.
+#
 # Self-documenting: run `make help` to see all targets
 
 .DEFAULT_GOAL := help
@@ -23,8 +33,8 @@ export ANSIBLE_LOG_PATH = $(LOG_FILE)
 
 $(shell mkdir -p $(LOG_DIR))
 
-ANSIBLE_PLAYBOOK = ansible-playbook
-ANSIBLE = ansible
+ANSIBLE_PLAYBOOK = $(UV_RUN) ansible-playbook
+ANSIBLE = $(UV_RUN) ansible
 
 # 1Password convention: op://Homelab/{service}-{env}/{field}
 OP_VAULT = Homelab
@@ -46,14 +56,8 @@ include ../../../infrastructure/ansible/fetch.mk
 ping-test: ## Test connectivity to test hosts
 	$(ANSIBLE) -i inventory/test.yaml all -m ping
 
-test-deploy: fetch test-ssh-ca test-pihole test-cloudflared ## Full test deployment (ssh-ca + pihole + cloudflared)
+test-deploy: fetch test-pihole test-cloudflared ## Full test deployment (pihole + cloudflared)
 	@echo "Test deployment complete"
-
-test-sign-certs: ## Sign host certificates for test (uses test CA)
-	@$(MAKE) -C ../../../ansible sign-certs-test INVENTORY=$(CURDIR)/inventory/test.yaml
-
-test-ssh-ca: test-sign-certs ## Configure SSH CA on test (sign + configure)
-	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/ssh-ca.yaml
 
 test-pihole: ## Install Pi-hole on test
 	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-lxc.yml \
@@ -70,14 +74,8 @@ test-dns: ## Register DNS entries for test instances
 ping-prod: ## Test connectivity to prod hosts
 	$(ANSIBLE) -i inventory/prod.yaml all -m ping
 
-prod-deploy: fetch prod-ssh-ca prod-pihole prod-cloudflared prod-nebula-sync ## Full prod deployment (ssh-ca + pihole + cloudflared + nebula-sync)
+prod-deploy: fetch prod-pihole prod-cloudflared prod-nebula-sync ## Full prod deployment (pihole + cloudflared + nebula-sync)
 	@echo "Production deployment complete"
-
-prod-sign-certs: ## Sign host certificates for prod
-	@$(MAKE) -C ../../../ansible sign-certs INVENTORY=$(CURDIR)/inventory/prod.yaml
-
-prod-ssh-ca: prod-sign-certs ## Configure SSH CA on prod (sign + configure)
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/ssh-ca.yaml
 
 prod-pihole: ## Install Pi-hole on prod
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml \
@@ -95,7 +93,7 @@ prod-dns: ## Register DNS entries for prod instances
 
 ##@ Blue-Green Deployment
 
-prod-deploy-green: fetch prod-ssh-ca-green ## Deploy to secondaries first (green)
+prod-deploy-green: fetch ## Deploy to secondaries first (green)
 	@echo "=== Deploying to secondaries (green) ==="
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_secondary \
 		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
@@ -103,21 +101,11 @@ prod-deploy-green: fetch prod-ssh-ca-green ## Deploy to secondaries first (green
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/nebula-sync.yml --limit pihole_secondary \
 		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
-prod-deploy-blue: fetch prod-ssh-ca-blue ## Deploy to primaries after verification (blue)
+prod-deploy-blue: fetch ## Deploy to primaries after verification (blue)
 	@echo "=== Deploying to primaries (blue) ==="
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_primary \
 		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_primary
-
-prod-ssh-ca-green: ## Sign and configure SSH CA for secondaries
-	@echo "=== Configuring SSH CA on secondaries (green) ==="
-	@$(MAKE) -C ../../../ansible sign-certs INVENTORY=$(CURDIR)/inventory/prod.yaml EXTRA_ARGS="--limit pihole_secondary"
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/ssh-ca.yaml --limit pihole_secondary
-
-prod-ssh-ca-blue: ## Sign and configure SSH CA for primaries
-	@echo "=== Configuring SSH CA on primaries (blue) ==="
-	@$(MAKE) -C ../../../ansible sign-certs INVENTORY=$(CURDIR)/inventory/prod.yaml EXTRA_ARGS="--limit pihole_primary"
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/ssh-ca.yaml --limit pihole_primary
 
 ##@ Upgrades
 
@@ -136,34 +124,6 @@ prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 
 prod-upgrade-check: ## Check versions without changes
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-upgrade.yml --tags check
-
-##@ Bootstrap (first-time deployment before cert auth works)
-
-# Bootstrap uses:
-#   - inventory/prod-bootstrap.yaml (IPs instead of hostnames)
-#   - jacaranda key (authorized_keys instead of certs)
-BOOTSTRAP_KEY = ~/.ssh/jacaranda
-BOOTSTRAP_INVENTORY = inventory/prod-bootstrap.yaml
-
-prod-bootstrap: ## Bootstrap User CA on prod (uses jacaranda key + IPs)
-	@echo "=== Bootstrapping User CA on prod Pi-holes ==="
-	@echo "Using jacaranda bootstrap key with IP addresses..."
-	ANSIBLE_HOST_KEY_CHECKING=False $(ANSIBLE_PLAYBOOK) -i $(BOOTSTRAP_INVENTORY) playbooks/ssh-ca.yaml \
-		--private-key $(BOOTSTRAP_KEY)
-	@echo ""
-	@echo "✓ User CA deployed. Normal cert-based SSH should now work."
-
-prod-bootstrap-green: ## Bootstrap User CA on secondaries only
-	@echo "=== Bootstrapping User CA on secondaries (green) ==="
-	ANSIBLE_HOST_KEY_CHECKING=False $(ANSIBLE_PLAYBOOK) -i $(BOOTSTRAP_INVENTORY) playbooks/ssh-ca.yaml \
-		--private-key $(BOOTSTRAP_KEY) \
-		--limit pihole_secondary
-
-prod-bootstrap-blue: ## Bootstrap User CA on primaries only
-	@echo "=== Bootstrapping User CA on primaries (blue) ==="
-	ANSIBLE_HOST_KEY_CHECKING=False $(ANSIBLE_PLAYBOOK) -i $(BOOTSTRAP_INVENTORY) playbooks/ssh-ca.yaml \
-		--private-key $(BOOTSTRAP_KEY) \
-		--limit pihole_primary
 
 ##@ Secrets
 
@@ -188,7 +148,7 @@ logs-clean: ## Remove old log files
 ##@ Other
 
 deps: ## Install Ansible Galaxy requirements
-	ansible-galaxy install -r requirements.yml
+	$(UV_RUN) ansible-galaxy install -r requirements.yml
 
 ##@ Help
 

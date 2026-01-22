@@ -53,10 +53,10 @@ prod-init: ## Initialize Terraform for prod
 prod-plan: ## Show Terraform plan for prod
 	@$(MAKE) -C terraform/envs/prod plan
 
-prod-apply: ## Create/update prod LXCs (Terraform)
+prod-apply: ## Create/update prod LXCs (Terraform + HA)
 	@$(MAKE) -C terraform/envs/prod apply
 
-prod-destroy: ## Destroy all prod LXCs (DANGEROUS)
+prod-destroy: ## Destroy all prod LXCs (DANGEROUS - auto removes from HA)
 	@$(MAKE) -C terraform/envs/prod destroy
 
 prod-deploy: ## Install Pi-hole on prod (Ansible)
@@ -76,9 +76,6 @@ prod-validate: ## Run DNS tests on prod
 
 prod-validate-local: ## Test local DNS records (Pi-hole custom entries)
 	@$(MAKE) -C terraform/envs/prod test-dns-local
-
-prod-sign-certs: ## Sign host certificates with production CA
-	@$(MAKE) -C ansible prod-sign-certs
 
 ##@ Blue-Green Deployment
 
@@ -107,17 +104,6 @@ prod-upgrade-blue: ## Upgrade primaries (blue) - step 1
 
 prod-upgrade-green: ## Upgrade secondaries (green) - step 2
 	@$(MAKE) -C ansible prod-upgrade-green
-
-##@ Bootstrap (first-time User CA deployment)
-
-prod-bootstrap: ## Bootstrap User CA on prod (uses jacaranda key + IPs)
-	@$(MAKE) -C ansible prod-bootstrap
-
-prod-bootstrap-green: ## Bootstrap User CA on secondaries only
-	@$(MAKE) -C ansible prod-bootstrap-green
-
-prod-bootstrap-blue: ## Bootstrap User CA on primaries only
-	@$(MAKE) -C ansible prod-bootstrap-blue
 
 ##@ Secrets
 

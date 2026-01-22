@@ -97,3 +97,16 @@ variable "onboot" {
   type        = bool
   default     = true
 }
+
+variable "ha_enabled" {
+  description = "Enable Proxmox HA for LXCs. When true, adds instances to HA and creates anti-affinity rules."
+  type        = bool
+  default     = false
+}
+
+variable "ha_anti_affinity_groups" {
+  description = "List of instance name groups that should have anti-affinity (kept on separate nodes). Each group creates a separate rule."
+  type        = list(list(string))
+  default     = []
+  # Example: [["dns-standard-primary", "dns-standard-secondary"], ["dns-restricted-primary", "dns-restricted-secondary"]]
+}
