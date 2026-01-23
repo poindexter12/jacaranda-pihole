@@ -73,7 +73,7 @@ services/pihole/
 └── ansible/
     ├── ansible.cfg
     ├── Makefile
-    ├── requirements.yml
+    ├── requirements.yaml
     ├── inventory/
     │   ├── test.yml            # Test inventory
     │   ├── prod.yml            # Production inventory

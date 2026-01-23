@@ -148,7 +148,7 @@ logs-clean: ## Remove old log files
 ##@ Other
 
 deps: ## Install Ansible Galaxy requirements
-	$(UV_RUN) ansible-galaxy install -r requirements.yml
+	$(UV_RUN) ansible-galaxy install -r requirements.yaml
 
 ##@ Help
 
