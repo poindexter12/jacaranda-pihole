@@ -22,7 +22,7 @@ make prod-dns          # Register DNS entries for Pi-holes
 **4 Production LXCs, 2 profiles, HA pairs:**
 
 | Hostname | VMID | Node | Profile | Role | Trusted IP | Mgmt IP | Transfer IP |
-|----------|------|------|---------|------|------------|---------|-------------|
+| ---------- | ------ | ------ | --------- | ------ | ------------ | --------- | ------------- |
 | dns-standard-primary | 1020 | joseph | standard | primary | 192.168.1.20 | 192.168.5.20 | 192.168.11.20 |
 | dns-standard-secondary | 1021 | maxwell | standard | secondary | 192.168.1.21 | 192.168.5.21 | 192.168.11.21 |
 | dns-restricted-primary | 1022 | joseph | restricted | primary | 192.168.1.22 | 192.168.5.22 | 192.168.11.22 |
@@ -31,7 +31,7 @@ make prod-dns          # Register DNS entries for Pi-holes
 **DNS Naming Convention:**
 
 | Pattern | Resolves To | Example |
-|---------|-------------|---------|
+| --------- | ------------- | --------- |
 | `{hostname}.trusted` | Trusted network (192.168.1.x) | `dns-standard-primary.trusted` → 192.168.1.20 |
 | `{hostname}.mgmt` | Management network (192.168.5.x) | `dns-standard-primary.mgmt` → 192.168.5.20 |
 | `{hostname}.transfer` | Transfer network (192.168.11.x) | `dns-standard-primary.transfer` → 192.168.11.20 |
@@ -40,13 +40,13 @@ make prod-dns          # Register DNS entries for Pi-holes
 **Test Instance:**
 
 | Hostname | VMID | Node | Trusted IP | Mgmt IP |
-|----------|------|------|------------|---------|
+| ---------- | ------ | ------ | ------------ | --------- |
 | pihole-test | 1199 | joseph | 192.168.1.199 | 192.168.5.199 |
 
 **Network interfaces per LXC (functional naming):**
 
 | Interface | VLAN | Purpose |
-|-----------|------|---------|
+| ----------- | ------ | --------- |
 | eth0 | trusted (192.168.1.x) | DNS queries from clients |
 | eth1 | mgmt (192.168.5.x) | SSH, Web UI |
 | eth2 | transfer (192.168.11.x) | nebula-sync replication |
@@ -161,7 +161,7 @@ make prod-validate
 **Deployment groups:**
 
 | Group | Hosts | Includes |
-|-------|-------|----------|
+| ------- | ------- | ---------- |
 | green (secondary) | 21, 23 | pihole + cloudflared + nebula-sync |
 | blue (primary) | 20, 22 | pihole + cloudflared (no nebula-sync) |
 
@@ -298,7 +298,7 @@ ssh root@dns-standard-primary.mgmt "dig @127.0.0.1 -p 5053 google.com"
 ## Related Documentation
 
 | Topic | Location |
-|-------|----------|
+| ------- | ---------- |
 | Makefile standards | `.claude/directives/makefile-conventions.md` |
 | Services pattern | `services/CLAUDE.md` |
 | Secrets management | `secrets/Makefile` |
