@@ -156,8 +156,8 @@ output "ansible_inventory_path" {
 output "cname_entries" {
   description = "CNAME entries for .lan layer and bare names"
   value = merge(
-    # .lan → .trusted (DNS queries via trusted network)
-    { for name, config in var.instances : "${name}.lan" => "${name}.trusted" },
+    # .lan → .mgmt (SSH, Web UI via management network)
+    { for name, config in var.instances : "${name}.lan" => "${name}.mgmt" },
     # bare → .lan (convenience)
     { for name, config in var.instances : name => "${name}.lan" }
   )

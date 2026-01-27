@@ -142,7 +142,7 @@
     # =========================================================================
     - name: Wait for Pi-hole DNS to stabilize
       ansible.builtin.pause:
-        seconds: 3
+        seconds: 10
       tags: [verify]
 
     - name: Test DNS resolution through Pi-hole
@@ -151,6 +151,8 @@
       register: pihole_dns_test
       changed_when: false
       failed_when: pihole_dns_test.rc != 0 or pihole_dns_test.stdout == ""
+      retries: 6
+      delay: 10
       tags: [verify]
 
     - name: Test blocked domain (should return 0.0.0.0)
