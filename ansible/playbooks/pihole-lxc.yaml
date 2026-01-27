@@ -5,7 +5,7 @@
 # Run after Terraform creates the LXCs.
 #
 # Usage:
-#   PIHOLE_PASSWORD="yourpass" ansible-playbook -i inventory/pihole-lxc.yml playbooks/pihole-lxc.yml
+#   PIHOLE_PASSWORD="yourpass" ansible-playbook -i inventory/prod.yaml playbooks/pihole-lxc.yaml
 #
 # Tags:
 #   install   - Install Pi-hole
@@ -144,6 +144,19 @@
         create: true
         mode: "0644"
       notify: Restart pihole-FTL
+      tags: [configure]
+
+    # =========================================================================
+    # FTL DATABASE RETENTION
+    # =========================================================================
+    # Limit query history to prevent FTL from consuming all available memory.
+    # FTL loads query data into RAM for the dashboard; 91 days (default) can
+    # use 800+ MB on a 1 GB LXC, causing OOM kills.
+    - name: Configure FTL database retention
+      ansible.builtin.command:
+        cmd: pihole-FTL --config database.maxDBdays {{ ftl_max_db_days }}
+      register: ftl_db_config
+      changed_when: ftl_db_config.stdout | trim | int != ftl_max_db_days
       tags: [configure]
 
     # =========================================================================

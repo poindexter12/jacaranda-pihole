@@ -1,6 +1,6 @@
 ---
 # Pi-hole LXC Group Variables
-# Used by ansible/playbooks/pihole-lxc.yml
+# Used by ansible/playbooks/pihole-lxc.yaml
 
 # SSH configuration for LXC containers
 ansible_user: root
@@ -30,6 +30,12 @@ dns_upstream_fallback:
   restricted:
     - "1.1.1.3"        # Cloudflare Family (malware + adult)
     - "1.0.0.3"        # Cloudflare Family secondary
+
+# FTL database retention (days)
+# Controls how long Pi-hole keeps DNS query history in pihole-FTL.db.
+# Lower values reduce FTL memory usage significantly.
+# At 91 days (default), FTL can consume 800+ MB on a 1 GB LXC.
+ftl_max_db_days: 10
 
 # Network configuration
 networks:

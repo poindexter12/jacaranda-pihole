@@ -60,7 +60,7 @@ test-deploy: fetch test-pihole test-cloudflared ## Full test deployment (pihole 
 	@echo "Test deployment complete"
 
 test-pihole: ## Install Pi-hole on test
-	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-lxc.yml \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/test.yaml playbooks/pihole-lxc.yaml \
 		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-test/webpassword')"
 
 test-cloudflared: ## Install cloudflared on test
@@ -78,7 +78,7 @@ prod-deploy: fetch prod-pihole prod-cloudflared prod-nebula-sync ## Full prod de
 	@echo "Production deployment complete"
 
 prod-pihole: ## Install Pi-hole on prod
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yaml \
 		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 
 prod-cloudflared: ## Install cloudflared on prod
@@ -95,7 +95,7 @@ prod-dns: ## Register DNS entries for prod instances
 
 prod-deploy-green: fetch ## Deploy to secondaries first (green)
 	@echo "=== Deploying to secondaries (green) ==="
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_secondary \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yaml --limit pihole_secondary \
 		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_secondary
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/nebula-sync.yml --limit pihole_secondary \
@@ -103,7 +103,7 @@ prod-deploy-green: fetch ## Deploy to secondaries first (green)
 
 prod-deploy-blue: fetch ## Deploy to primaries after verification (blue)
 	@echo "=== Deploying to primaries (blue) ==="
-	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yml --limit pihole_primary \
+	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-lxc.yaml --limit pihole_primary \
 		-e "pihole_password=$$($(OP_READ) 'op://$(OP_VAULT)/$(SERVICE)-prod/webpassword')"
 	@$(ANSIBLE_PLAYBOOK) -i inventory/prod.yaml playbooks/pihole-cloudflared.yml --limit pihole_primary
 
