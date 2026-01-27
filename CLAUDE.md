@@ -35,7 +35,8 @@ make prod-dns          # Register DNS entries for Pi-holes
 | `{hostname}.trusted` | Trusted network (192.168.1.x) | `dns-standard-primary.trusted` → 192.168.1.20 |
 | `{hostname}.mgmt` | Management network (192.168.5.x) | `dns-standard-primary.mgmt` → 192.168.5.20 |
 | `{hostname}.transfer` | Transfer network (192.168.11.x) | `dns-standard-primary.transfer` → 192.168.11.20 |
-| `{hostname}` | CNAME → .trusted | `dns-standard-primary` → 192.168.1.20 |
+| `{hostname}.lan` | CNAME → .mgmt | `dns-standard-primary.lan` → 192.168.5.20 |
+| `{hostname}` | CNAME → .lan | `dns-standard-primary` → `dns-standard-primary.lan` |
 
 **Test Instance:**
 
@@ -85,10 +86,10 @@ services/pihole/
     ├── host_vars/
     │   └── pihole-*.yml
     ├── playbooks/
-    │   ├── pihole-lxc.yml      # Install Pi-hole
-    │   ├── pihole-cloudflared.yml  # Install cloudflared + configure
-    │   ├── nebula-sync.yml     # HA sync (secondaries only)
-    │   └── pihole-upgrade.yml  # Blue-green upgrades
+    │   ├── pihole-lxc.yaml      # Install Pi-hole
+    │   ├── pihole-cloudflared.yaml  # Install cloudflared + configure
+    │   ├── nebula-sync.yaml     # HA sync (secondaries only)
+    │   └── pihole-upgrade.yaml  # Blue-green upgrades
     ├── templates/
     └── files/
         └── docker-compose.yaml
@@ -213,36 +214,36 @@ make prod-validate
 # All production instances
 make prod-validate
 
-# Or manually (uses DNS names)
+# Or manually (query via trusted IPs)
 for host in dns-standard-primary dns-standard-secondary dns-restricted-primary dns-restricted-secondary; do
-  echo "$host: $(dig +short @$host.trusted google.com)"
+  echo "$host: $(dig +short @$host.lan google.com)"
 done
 ```
 
 ### Test Ad Blocking
 
 ```bash
-dig @dns-standard-primary.trusted doubleclick.net  # Should return 0.0.0.0
+dig @dns-standard-primary.lan doubleclick.net  # Should return 0.0.0.0
 ```
 
 ### SSH to Instance
 
 ```bash
-ssh root@dns-standard-primary.mgmt
-# Or short form (CNAME → trusted network, but SSH via mgmt)
+ssh root@dns-standard-primary.lan
+# Or via mgmt IP directly
 ssh root@192.168.5.20
 ```
 
 ### Check Pi-hole Status
 
 ```bash
-ssh root@dns-standard-primary.mgmt "pihole status"
+ssh root@dns-standard-primary.lan "pihole status"
 ```
 
 ### Force nebula-sync
 
 ```bash
-ssh root@dns-standard-secondary.mgmt "systemctl start nebula-sync.service"
+ssh root@dns-standard-secondary.lan "systemctl start nebula-sync.service"
 ```
 
 ## Troubleshooting
@@ -266,15 +267,24 @@ ssh root@joseph "journalctl -u pve-container@1020 -n 50"
 ### DNS not responding
 
 ```bash
-ssh root@dns-standard-primary.mgmt "ss -tlnp | grep :53"
-ssh root@dns-standard-primary.mgmt "systemctl status pihole-FTL"
+ssh root@dns-standard-primary.lan "ss -tlnp | grep :53"
+ssh root@dns-standard-primary.lan "systemctl status pihole-FTL"
+```
+
+### macOS DNS cache stale after deployment
+
+After blue-green deployment restarts FTL, macOS may cache failed DNS lookups.
+Symptoms: `make` commands fail with "Connect Server unreachable" or SSH can't resolve `.lan` hostnames.
+
+```bash
+sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
 ```
 
 ### Cloudflared issues
 
 ```bash
-ssh root@dns-standard-primary.mgmt "systemctl status cloudflared"
-ssh root@dns-standard-primary.mgmt "dig @127.0.0.1 -p 5053 google.com"
+ssh root@dns-standard-primary.lan "systemctl status cloudflared"
+ssh root@dns-standard-primary.lan "dig @127.0.0.1 -p 5053 google.com"
 ```
 
 ## DO vs DON'T

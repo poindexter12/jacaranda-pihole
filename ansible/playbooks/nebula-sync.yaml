@@ -192,33 +192,20 @@
              else 'Skipping initial sync - timer will retry once blue is deployed.' }}
       tags: [configure]
 
-    - name: Run initial sync
+    - name: Run initial sync (best-effort, timer retries every 15 min)
       ansible.builtin.command:
         cmd: systemctl start nebula-sync.service
       register: initial_sync
       changed_when: initial_sync.rc == 0
-      when: primary_reachable
-      tags: [configure]
-
-    - name: Wait for sync to complete
-      ansible.builtin.pause:
-        seconds: 10
-      when: primary_reachable
-      tags: [configure]
-
-    - name: Check sync status
-      ansible.builtin.command:
-        cmd: systemctl status nebula-sync.service
-      register: sync_status
-      changed_when: false
       failed_when: false
       when: primary_reachable
       tags: [configure]
 
-    - name: Display sync status
+    - name: Report initial sync result
       ansible.builtin.debug:
-        var: sync_status.stdout_lines
-      when: primary_reachable and sync_status.stdout_lines is defined
+        msg: >-
+          Initial sync {{ 'succeeded' if initial_sync.rc == 0 else 'failed (rc=' ~ initial_sync.rc ~ ') — timer will retry in ≤15 min' }}
+      when: primary_reachable and initial_sync.rc is defined
       tags: [configure]
 
     # =========================================================================
@@ -234,8 +221,9 @@
     - name: Display verification results
       vars:
         initial_sync_status: >-
-          {{ 'completed' if (primary_reachable | default(false) and initial_sync is defined)
-             else 'skipped (primary not reachable - will sync when blue is deployed)' }}
+          {% if not (primary_reachable | default(false)) %}skipped (primary not reachable)
+          {%- elif initial_sync.rc | default(1) == 0 %}completed
+          {%- else %}failed — timer will retry{%- endif %}
       ansible.builtin.debug:
         msg: |
           nebula-sync configured on {{ inventory_hostname }}:
