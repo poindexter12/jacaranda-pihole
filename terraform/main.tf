@@ -111,9 +111,9 @@ resource "proxmox_lxc" "pihole" {
       features,
       network,
       start,
-      cmode,    # Provider tries to add default, Proxmox rejects on existing containers
-      hastate,  # HA managed by null_resource.ha_add via ha-manager CLI
-      tags,     # Can't update tags on existing LXCs via API (400 error)
+      cmode,   # Provider tries to add default, Proxmox rejects on existing containers
+      hastate, # HA managed by null_resource.ha_add via ha-manager CLI
+      tags,    # Can't update tags on existing LXCs via API (400 error)
     ]
   }
 }
