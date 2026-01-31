@@ -1,0 +1,49 @@
+# Pi-hole Ansible
+#
+# Package management for Pi-hole service.
+# Secrets: Uses 1Password Connect Server via op-read
+#
+# Run `just --list` to see all recipes
+
+import '../../../infrastructure/just/styles.just'
+
+# Configuration
+ansible_playbook := env("UV_RUN") + " ansible-playbook"
+
+# Default recipe shows help
+default:
+    @just --list
+
+# ============================================================================
+# Package Management
+# ============================================================================
+
+# Download missing packages
+[group('packages')]
+fetch:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ANSIBLE_CONFIG=ansible.cfg {{ ansible_playbook }} \
+        "$REPO_ROOT/infrastructure/ansible/playbooks/fetch.yaml" \
+        -e versions_file="$(pwd)/versions.yaml" \
+        -e cache_dir="$(pwd)/.packagecache" \
+        --tags download
+
+# Re-download all packages
+[group('packages')]
+fetch-force:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ANSIBLE_CONFIG=ansible.cfg {{ ansible_playbook }} \
+        "$REPO_ROOT/infrastructure/ansible/playbooks/fetch.yaml" \
+        -e versions_file="$(pwd)/versions.yaml" \
+        -e cache_dir="$(pwd)/.packagecache" \
+        --tags download \
+        -e force=true
+
+# Clear package cache
+[group('packages')]
+fetch-clean:
+    @printf '%b→ Clearing package cache%b\n' '{{ CYAN }}' '{{ NC }}'
+    @rm -rf .packagecache
+    @printf '%b✓ Cache cleared%b\n' '{{ GREEN }}' '{{ NC }}'
