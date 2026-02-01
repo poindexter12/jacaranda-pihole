@@ -25,19 +25,24 @@ import '../../infrastructure/just/ansible.just'
 # ============================================================================
 
 # Initialize terraform
+[group('terraform')]
 init: (tf-init "prod")
 
 # Plan infrastructure changes
+[group('terraform')]
 plan: (tf-plan "prod")
 
 # Apply infrastructure changes
+[group('terraform')]
 apply: (tf-apply "prod")
 
 # Destroy all infrastructure
+[group('terraform')]
 [confirm("Destroy ALL production Pi-hole instances? This is DANGEROUS!")]
 destroy: (tf-destroy "prod")
 
 # Destroy secondary instances only (green)
+[group('terraform')]
 [confirm("Destroy secondary Pi-hole instances?")]
 destroy-green:
     #!/usr/bin/env bash
@@ -52,6 +57,7 @@ destroy-green:
     printf '%b✓ Secondaries destroyed%b\n' '{{ GREEN }}' '{{ NC }}'
 
 # Destroy primary instances only (blue)
+[group('terraform')]
 [confirm("Destroy primary Pi-hole instances?")]
 destroy-blue:
     #!/usr/bin/env bash
@@ -70,6 +76,7 @@ destroy-blue:
 # ============================================================================
 
 # Deploy Pi-hole to all instances (pihole + cloudflared + nebula-sync)
+[group('deploy')]
 deploy: fetch
     #!/usr/bin/env bash
     set -euo pipefail
@@ -90,6 +97,7 @@ deploy: fetch
     printf '%b✓ Production deployment complete%b\n' '{{ GREEN }}' '{{ NC }}'
 
 # Deploy to secondaries first (green) - full stack
+[group('deploy')]
 deploy-green: fetch
     #!/usr/bin/env bash
     set -euo pipefail
@@ -112,6 +120,7 @@ deploy-green: fetch
     printf '%b✓ Secondary deployment complete%b\n' '{{ GREEN }}' '{{ NC }}'
 
 # Deploy to primaries after verification (blue) - no nebula-sync
+[group('deploy')]
 deploy-blue: fetch
     #!/usr/bin/env bash
     set -euo pipefail
@@ -130,6 +139,7 @@ deploy-blue: fetch
     printf '%b✓ Primary deployment complete%b\n' '{{ GREEN }}' '{{ NC }}'
 
 # Register DNS entries for production Pi-holes
+[group('deploy')]
 dns: (ansible-run "prod" "playbooks/pihole-dns-self.yaml")
 
 # ============================================================================
@@ -137,9 +147,11 @@ dns: (ansible-run "prod" "playbooks/pihole-dns-self.yaml")
 # ============================================================================
 
 # Check versions without upgrading
+[group('upgrade')]
 upgrade-check: (ansible-run "prod" "playbooks/pihole-upgrade.yaml" "--tags check")
 
 # Upgrade primaries (blue) - step 1
+[group('upgrade')]
 upgrade-blue:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -156,6 +168,7 @@ upgrade-blue:
     printf '\n%bVerify primaries are working, then run: just prod::upgrade-green%b\n' '{{ YELLOW }}' '{{ NC }}'
 
 # Upgrade secondaries (green) - step 2
+[group('upgrade')]
 upgrade-green:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -175,6 +188,7 @@ upgrade-green:
 # ============================================================================
 
 # Validate DNS resolution on all 4 instances
+[group('validate')]
 validate: verify
     #!/usr/bin/env bash
     set -euo pipefail
@@ -190,6 +204,7 @@ validate: verify
     done
 
 # Test local DNS records (A records and CNAMEs)
+[group('validate')]
 validate-local:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -227,6 +242,7 @@ validate-local:
     done
 
 # Test primaries only (blue - .20, .22)
+[group('validate')]
 validate-blue:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -242,6 +258,7 @@ validate-blue:
     done
 
 # Test secondaries only (green - .21, .23)
+[group('validate')]
 validate-green:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -279,6 +296,7 @@ verify:
 # ============================================================================
 
 # Full deployment: apply + wait + deploy
+[group('workflow')]
 full: apply
     @echo "Waiting 30s for LXCs to be ready..."
     @sleep 30
