@@ -61,7 +61,7 @@ dns: (ansible-run "test" "playbooks/pihole-dns-self.yaml")
 # ============================================================================
 
 # Validate DNS resolution
-validate:
+validate: verify
     #!/usr/bin/env bash
     set -euo pipefail
     printf '%b=== DNS Resolution Test (test) ===%b\n' '{{ BOLD }}' '{{ NC }}'
@@ -74,7 +74,8 @@ validate:
         printf '%b FAIL%b\n' '{{ RED }}' '{{ NC }}'
     fi
 
-# Verify DNS and SSH connectivity (preflight check)
+# Preflight: DNS and SSH connectivity
+[private]
 verify:
     #!/usr/bin/env bash
     set -euo pipefail

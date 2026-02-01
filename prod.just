@@ -175,7 +175,7 @@ upgrade-green:
 # ============================================================================
 
 # Validate DNS resolution on all 4 instances
-validate:
+validate: verify
     #!/usr/bin/env bash
     set -euo pipefail
     printf '%b=== DNS Resolution Test (all 4 instances) ===%b\n' '{{ BOLD }}' '{{ NC }}'
@@ -256,7 +256,8 @@ validate-green:
         fi
     done
 
-# Verify DNS and SSH connectivity (preflight check)
+# Preflight: DNS and SSH connectivity
+[private]
 verify:
     #!/usr/bin/env bash
     set -euo pipefail
