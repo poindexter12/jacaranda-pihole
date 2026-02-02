@@ -10,11 +10,11 @@
 
 ```bash
 cd services/pihole
-make help              # Show all commands
-make test-full         # Create test LXC + deploy Pi-hole
-make test-destroy      # Destroy test instance
-make prod-validate     # Test production DNS
-make prod-dns          # Register DNS entries for Pi-holes
+just --list            # Show all recipes
+just test::full        # Create test LXC + deploy Pi-hole
+just test::destroy     # Destroy test instance
+just prod::validate    # Test production DNS
+just prod::dns         # Register DNS entries for Pi-holes
 ```
 
 ## Architecture
@@ -56,7 +56,9 @@ make prod-dns          # Register DNS entries for Pi-holes
 
 ```text
 services/pihole/
-├── Makefile                    # Orchestrates terraform + ansible
+├── justfile                    # Module-based recipes (mod test, mod prod)
+├── test.just                   # Test environment recipes
+├── prod.just                   # Production environment recipes
 ├── .gitignore
 ├── terraform/
 │   ├── main.tf                 # LXC module
@@ -65,15 +67,13 @@ services/pihole/
 │   └── envs/
 │       ├── test/               # Test instance (VMID 1199)
 │       │   ├── main.tf
-│       │   ├── backend.tf
-│       │   └── Makefile
+│       │   └── backend.tf
 │       └── prod/               # Production (VMIDs 1020-1023)
 │           ├── main.tf
-│           ├── backend.tf
-│           └── Makefile
+│           └── backend.tf
 └── ansible/
     ├── ansible.cfg
-    ├── Makefile
+    ├── justfile                # Ansible-specific recipes
     ├── requirements.yaml
     ├── inventory/
     │   ├── test.yml            # Test inventory
@@ -114,13 +114,13 @@ op read 'op://Homelab/pihole-prod/webpassword'   # Prod password
 cd services/pihole
 
 # 1. Create test LXC + deploy Pi-hole
-make test-full
+just test::full
 
 # 2. Verify DNS
 dig @192.168.1.99 google.com
 
 # 3. Cleanup
-make test-destroy
+just test::destroy
 ```
 
 ### Production Environment
@@ -129,13 +129,13 @@ make test-destroy
 cd services/pihole
 
 # Full deployment (LXCs + Pi-hole + cloudflared + nebula-sync)
-make prod-full
+just prod::full
 
 # Or step by step:
-make prod-apply     # Create/update LXCs (Terraform)
-make prod-deploy    # Install Pi-hole (Ansible)
-make prod-dns       # Register DNS entries for Pi-holes
-make prod-validate  # Test DNS on all 4 instances
+just prod::apply     # Create/update LXCs (Terraform)
+just prod::deploy    # Install Pi-hole (Ansible)
+just prod::dns       # Register DNS entries for Pi-holes
+just prod::validate  # Test DNS on all 4 instances
 ```
 
 ### Blue-Green Deployment
@@ -146,17 +146,17 @@ Deploy to one tier at a time to minimize DNS downtime:
 cd services/pihole/ansible
 
 # Deploy secondaries first (green)
-make prod-deploy-green
+just prod::deploy-green
 
 # Verify secondaries
 dig @192.168.1.21 google.com
 dig @192.168.1.23 google.com
 
 # Deploy primaries (blue)
-make prod-deploy-blue
+just prod::deploy-blue
 
 # Final verification
-make prod-validate
+just prod::validate
 ```
 
 **Deployment groups:**
@@ -190,20 +190,20 @@ make prod-validate
 cd services/pihole
 
 # Check current versions
-make -C ansible prod-upgrade-check
+cd ansible && just prod-upgrade-check
 
 # Upgrade primaries first (blue)
-make prod-upgrade
+just prod::upgrade
 
 # Verify primaries
 dig @192.168.1.20 google.com
 dig @192.168.1.22 google.com
 
 # Upgrade secondaries (green)
-make prod-upgrade-green
+just prod::upgrade-green
 
 # Final verification
-make prod-validate
+just prod::validate
 ```
 
 ## Common Operations
@@ -212,7 +212,7 @@ make prod-validate
 
 ```bash
 # All production instances
-make prod-validate
+just prod::validate
 
 # Or manually (query via trusted IPs)
 for host in dns-standard-primary dns-standard-secondary dns-restricted-primary dns-restricted-secondary; do
@@ -291,7 +291,7 @@ ssh root@dns-standard-primary.lan "dig @127.0.0.1 -p 5053 google.com"
 
 ### DO
 
-- ✅ Run `make secrets` before first deployment
+- ✅ Run `just check-secrets` before first deployment
 - ✅ Use test environment to validate changes
 - ✅ Use blue-green upgrades for production
 - ✅ Access web UI via mgmt network (192.168.5.x)
