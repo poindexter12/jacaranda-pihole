@@ -9,7 +9,6 @@
 #   just test::deploy     # Deploy Pi-hole + cloudflared
 #   just test::full       # Apply + wait + deploy
 #   just test::validate   # Test DNS resolution
-#   just test::verify     # Preflight: check DNS + SSH connectivity
 
 import '../../infrastructure/just/terraform.just'
 import '../../infrastructure/just/ansible.just'
