@@ -309,8 +309,8 @@ ssh root@dns-standard-primary.lan "dig @127.0.0.1 -p 5053 google.com"
 
 | Topic | Location |
 | ------- | ---------- |
-| Makefile standards | `.claude/directives/makefile-conventions.md` |
+| Justfile standards | `infrastructure/just/PATTERNS.md` |
 | Services pattern | `services/CLAUDE.md` |
-| Secrets management | `secrets/Makefile` |
+| Secrets management | `infrastructure/just/secrets.just` |
 | Base infrastructure | `infrastructure/terraform/` |
 | Project conventions | `CLAUDE.md` |
