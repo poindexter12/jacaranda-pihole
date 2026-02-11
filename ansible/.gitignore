@@ -1,11 +1,8 @@
-# Secrets (main .secrets.local is at parent level)
+# Secrets
 secrets.local.yml
 *.vault.yml
 
-# Ansible
-*.retry
-
-# Logs (verbose output from make commands)
+# Ansible logs (verbose output)
 logs/
 
 # Package cache (downloaded binaries)
