@@ -1,0 +1,13 @@
+# Terraform
+.terraform/
+*.tfstate.backup
+*.tfstate.*.backup
+.terraform.lock.hcl
+
+# Ansible
+ansible/logs/
+*.retry
+
+# Environment
+.envrc.secrets
+.mise.local.toml
