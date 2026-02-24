@@ -19,16 +19,9 @@ terraform {
 # Base Infrastructure
 # ============================================================================
 
-data "terraform_remote_state" "base" {
-  backend = "local"
-
-  config = {
-    path = "../../../../../infrastructure/terraform/terraform.tfstate"
-  }
-}
-
-locals {
-  base = data.terraform_remote_state.base.outputs
+module "base_infra" {
+  source = "git::https://github.com/poindexter12/jacaranda-shared-libs.git//infrastructure/terraform/modules/base-infra?ref=v1.4.0"
+  hub_state_path = "${path.module}/../../../../jacaranda-infra/infrastructure/terraform/terraform.tfstate"
 }
 
 # ============================================================================
@@ -36,10 +29,10 @@ locals {
 # ============================================================================
 
 provider "proxmox" {
-  pm_api_url          = local.base.proxmox_api_url
-  pm_api_token_id     = local.base.proxmox_api_token_id
-  pm_api_token_secret = local.base.proxmox_api_token_secret
-  pm_tls_insecure     = local.base.proxmox_tls_insecure
+  pm_api_url          = module.base_infra.proxmox_api_url
+  pm_api_token_id     = module.base_infra.proxmox_api_token_id
+  pm_api_token_secret = module.base_infra.proxmox_api_token_secret
+  pm_tls_insecure     = module.base_infra.proxmox_tls_insecure
   pm_timeout          = 600
 }
 
@@ -51,8 +44,8 @@ module "pihole" {
   source = "../.."
 
   env            = "test"
-  vlans          = local.base.vlans
-  ssh_public_key = local.base.ssh_public_key
+  vlans          = module.base_infra.vlans
+  ssh_public_key = module.base_infra.ssh_public_key
   onboot         = false # Don't auto-start test instance
 
   instances = {

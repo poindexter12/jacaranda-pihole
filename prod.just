@@ -17,8 +17,8 @@
 #   just prod::upgrade-blue      # Upgrade primaries
 #   just prod::upgrade-green     # Upgrade secondaries
 
-import '../../lib/infrastructure/just/terraform.just'
-import '../../lib/infrastructure/just/ansible.just'
+import 'lib/infrastructure/just/terraform.just'
+import 'lib/infrastructure/just/ansible.just'
 
 # ============================================================================
 # Terraform Operations

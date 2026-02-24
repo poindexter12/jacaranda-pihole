@@ -13,8 +13,8 @@
 #   just prod::deploy-green      # Deploy to secondaries first
 #   just prod::deploy-blue       # Deploy to primaries after verification
 
-import '../../lib/infrastructure/just/styles.just'
-import '../../lib/infrastructure/just/secrets.just'
+import 'lib/infrastructure/just/styles.just'
+import 'lib/infrastructure/just/secrets.just'
 
 # Module declarations
 mod test
