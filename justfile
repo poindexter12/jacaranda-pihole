@@ -25,6 +25,21 @@ mod prod
     just --list
 
 # ============================================================================
+# Setup & Tooling
+# ============================================================================
+
+# Update mise and reinstall tools
+[group('setup')]
+upgrade:
+    @mise upgrade
+    @mise install
+
+# Sync Python dependencies (after pyproject.toml changes)
+[group('setup')]
+sync:
+    @uv sync
+
+# ============================================================================
 # Cross-Environment Utilities
 # ============================================================================
 

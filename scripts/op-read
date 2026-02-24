@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# op-read - Wrapper for op-connect.sh read command
+# Usage: op-read 'op://Vault/Item/Field'
+#
+# This script exists so Just recipes can call op-read as a command
+# (shell functions from .envrc aren't available in Just's sh context)
+
+exec "$(dirname "$0")/op-connect.sh" read "$@"
