@@ -10,8 +10,8 @@
 #   just test::full       # Apply + wait + deploy
 #   just test::validate   # Test DNS resolution
 
-import '../../infrastructure/just/terraform.just'
-import '../../infrastructure/just/ansible.just'
+import '../../lib/infrastructure/just/terraform.just'
+import '../../lib/infrastructure/just/ansible.just'
 
 # ============================================================================
 # Terraform Operations
