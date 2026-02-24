@@ -1,0 +1,13 @@
+# Local mise configuration for 1Password Connect
+#
+# Usage:
+# 1. Copy to .mise.local.toml: cp .mise.local.toml.example .mise.local.toml
+# 2. Update the URL and token for your 1Password Connect server
+# 3. .mise.local.toml is gitignored
+#
+# Alternative: Use secrets/op-connect.sh wrapper for dynamic token fetching
+
+[env]
+# 1Password Connect configuration
+OP_CONNECT_HOST = "http://op-connect.lan:8080"
+OP_CONNECT_TOKEN = "your-connect-token-here"

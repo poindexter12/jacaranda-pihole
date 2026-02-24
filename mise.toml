@@ -1,0 +1,5 @@
+[tools]
+just = "1.40.0"
+opentofu = "1.8.8"
+uv = "0.5.20"
+pre-commit = "4.0.1"

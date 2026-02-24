@@ -1,0 +1,18 @@
+[project]
+name = "jacaranda-pihole"
+version = "0.1.0"
+description = "Pi-hole DNS infrastructure service"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "ansible>=2.17,<2.18",
+    "jmespath>=1.0.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.uv.sources]
